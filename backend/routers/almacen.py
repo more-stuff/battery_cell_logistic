@@ -8,21 +8,19 @@ router = APIRouter(prefix="/almacen", tags=["Mozo Almacén"])
 
 
 @router.post("/ubicar")
-def ubicar_caja_estanteria(
-    datos: schemas.UbicacionInput, db: Session = Depends(get_db)
-):
+def ubicar_caja(datos: schemas.UbicacionInput, db: Session = Depends(get_db)):
+    # Buscamos en la tabla NUEVA (CajaReempaque)
     caja = (
-        db.query(models.Caja)
-        .filter(models.Caja.id_temporal == datos.id_temporal)
+        db.query(models.CajaReempaque)
+        .filter(models.CajaReempaque.id_temporal == datos.id_temporal)
         .first()
     )
 
     if not caja:
-        raise HTTPException(status_code=404, detail="Etiqueta temporal no encontrada")
+        raise HTTPException(status_code=404, detail="Etiqueta no encontrada")
 
     caja.ubicacion_estanteria = datos.ubicacion
-    caja.fecha_almacenamiento = datetime.now()
-    caja.estado = "ALMACENADA"
+    caja.fecha_almacenamiento = datetime.now()  # <--- AHORA GUARDAMOS LA FECHA AQUÍ
 
     db.commit()
-    return {"mensaje": f"Caja {datos.id_temporal} ubicada en {datos.ubicacion}"}
+    return {"mensaje": "Ubicada", "ubicacion": datos.ubicacion}

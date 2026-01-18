@@ -33,16 +33,26 @@ class UbicacionInput(BaseModel):
 
 # --- PARTE 3: LO QUE ENVÍA EL ADMIN (OFICINA) ---
 # Para rellenar la Zona Verde (Incoming)
-class IncomingUpdate(BaseModel):
-    caja_ids: List[int]  # A qué cajas aplicar esto
+
+
+class IncomingData(BaseModel):
+    hu_entrada: str  # El HU del proveedor (Clave Primaria)
+    generation_status: Optional[str] = None
+    fecha_recibo: Optional[datetime | str] = (
+        None  # <--- AHORA ES DATETIME (Fecha + Hora)
+    )
     awb_swb: Optional[str] = None
     np_packing_list: Optional[str] = None
-    hu_palet_proveedor: Optional[str] = None
-    fecha_recibo: Optional[datetime] = None
+    fecha_caducidad: Optional[date | str] = None
 
 
 # Para rellenar la Zona Azul (Outbound)
-class OutboundUpdate(BaseModel):
-    caja_ids: List[int]
-    numero_salida_delivery: str
-    fecha_envio: datetime
+class OutboundData(BaseModel):
+    # EL ÚNICO OBLIGATORIO (Tu llave de búsqueda)
+    id_temporal: str
+
+    # OPCIONALES (Se rellenan según se tenga la info)
+    hu_silena: Optional[str] = None  # HU Silena Outbound
+    numero_salida: Optional[str] = None  # Nº Salida / Delivery
+    handling_unit: Optional[str] = None  # HU Final Embarque
+    fecha_envio: Optional[datetime | str] = None

@@ -13,39 +13,53 @@ router = APIRouter(
 )
 
 
-@router.post("/finalizar", response_model=schemas.RespuestaReempaque)
+@router.post("/finalizar")
 def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get_db)):
-    if not datos.celdas:
-        raise HTTPException(status_code=400, detail="El paquete no contiene celdas")
 
-    fechas_caducidad = [c.fecha_caducidad for c in datos.celdas]
-    worst_case_date = min(fechas_caducidad)
-    id_temp = f"TMP-{str(uuid.uuid4())[:6].upper()}"
+    # 1. CALCULAR LA PEOR CADUCIDAD (MIN)
+    # Sacamos todas las fechas de las celdas que nos envía el frontend
+    lista_fechas = [c.fecha_caducidad for c in datos.celdas]
 
-    nueva_caja = models.Caja(
-        usuario_reempaque_id=datos.usuario_id,
+    # Si hay fechas, cogemos la mínima. Si no, None.
+    peor_caducidad = min(lista_fechas) if lista_fechas else None
+
+    # 2. GENERAR ID TEMPORAL (Tu lógica de TMP-...)
+    # (Aquí va tu código de generar ID, lo resumo)
+    timestamp_code = int(datetime.now().timestamp())
+    nuevo_id = f"TMP-{hex(timestamp_code)[2:].upper()}"
+
+    # 3. CREAR LA CAJA (Con los nuevos nombres de campos)
+    nueva_caja = models.CajaReempaque(
+        id_temporal=nuevo_id,
+        usuario_id=datos.usuario_id,
+        # Guardamos las fechas de reempaque
         fecha_inicio_reempaque=datos.fecha_inicio,
-        fecha_reempaque=datos.fecha_fin,
-        id_temporal=id_temp,
-        hu_silena_outbound=None,
-        registro_silena="PENDIENTE",
-        fecha_caducidad_mas_antigua=worst_case_date,
-        estado="CERRADA",
+        fecha_fin_reempaque=datos.fecha_fin,
+        # Guardamos la caducidad calculada
+        fecha_caducidad_caja=peor_caducidad,
+        # El resto (Outbound, Almacén) se queda en NULL automáticamente
     )
 
-    for c in datos.celdas:
+    db.add(nueva_caja)
+    db.commit()
+    db.refresh(nueva_caja)
+
+    # 4. GUARDAR CELDAS Y VINCULAR PALETS
+    for celda_in in datos.celdas:
+        # A. Asegurar Palet Origen
+        hu_prov = celda_in.hu_origen
+        if not db.query(models.PaletEntrada).filter_by(hu_proveedor=hu_prov).first():
+            db.add(models.PaletEntrada(hu_proveedor=hu_prov))  # Crear placeholder
+            db.commit()
+
+        # B. Crear Celda
         nueva_celda = models.Celda(
-            dmc_code=c.dmc_code,
-            fecha_caducidad=c.fecha_caducidad,
-            hu_origen_celda=c.hu_origen,
+            hu_origen_id=hu_prov,
+            dmc_code=celda_in.dmc_code,
+            fecha_caducidad=celda_in.fecha_caducidad,
         )
-        nueva_caja.celdas.append(nueva_celda)
+        db.add(nueva_celda)
 
-    try:
-        db.add(nueva_caja)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+    db.commit()
 
-    return {"mensaje": "Caja guardada", "id_temporal": id_temp}
+    return {"mensaje": "Caja guardada", "id_temporal": nueva_caja.id_temporal}

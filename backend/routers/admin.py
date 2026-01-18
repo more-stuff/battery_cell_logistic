@@ -1,148 +1,295 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_, and_
 from typing import Optional
+from pydantic import BaseModel
+from datetime import date, datetime, time, timedelta
 import csv
 import io
-import uuid
-from datetime import datetime
 
-import models, schemas
+
 from database import get_db
+import models, schemas
 
-router = APIRouter(prefix="/admin", tags=["Admin & Reportes"])
+# Fíjate que NO importamos schemas aquí para el modelo de entrada,
+# lo definimos localmente para evitar el error que tienes.
+
+router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
-# --- GESTIÓN DE CAJAS ---
-@router.get("/cajas")
-def listar_cajas(
-    skip: int = 0,
-    limit: int = 50,
-    estado: Optional[str] = None,
+# --- FUNCIÓN PRINCIPAL ---
+@router.put("/incoming/actualizar")
+def actualizar_datos_entrada(
+    datos: schemas.IncomingData, db: Session = Depends(get_db)
+):
+    # 1. Buscamos el Palet por su HU
+    palet = (
+        db.query(models.PaletEntrada)
+        .filter(models.PaletEntrada.hu_proveedor == datos.hu_entrada)
+        .first()
+    )
+
+    mensaje = ""
+
+    if not palet:
+        # CASO A: No existe -> Lo creamos nuevo
+        palet = models.PaletEntrada(
+            hu_proveedor=datos.hu_entrada,
+            fecha_recibo=datos.fecha_recibo,
+            awb_swb=datos.awb_swb,
+            np_packing_list=datos.np_packing_list,
+            fecha_caducidad_proveedor=datos.fecha_caducidad,
+            generation_status="PENDING",
+        )
+        db.add(palet)
+        mensaje = "✅ NUEVO REGISTRO: Palet creado y datos guardados."
+    else:
+        # CASO B: Ya existe -> Actualizamos SOLO lo que nos hayan enviado
+        if datos.fecha_recibo != "":
+            palet.fecha_recibo = datos.fecha_recibo
+        if datos.awb_swb:
+            palet.awb_swb = datos.awb_swb
+        if datos.np_packing_list:
+            palet.np_packing_list = datos.np_packing_list
+        if datos.fecha_caducidad != "":
+            palet.fecha_caducidad_proveedor = datos.fecha_caducidad
+
+        mensaje = "🔄 ACTUALIZADO: Datos del palet modificados correctamente."
+
+    db.commit()
+    db.refresh(palet)
+
+    return {"mensaje": mensaje, "hu": palet.hu_proveedor}
+
+
+# RUTA PARA REGISTRAR SALIDA
+@router.put("/outbound/actualizar")
+def registrar_salida(datos: schemas.OutboundData, db: Session = Depends(get_db)):
+    # 1. Buscamos la caja por su ID Temporal (TMP-...)
+    caja = (
+        db.query(models.CajaReempaque)
+        .filter(models.CajaReempaque.id_temporal == datos.id_temporal)
+        .first()
+    )
+
+    if not caja:
+        raise HTTPException(
+            status_code=404, detail="❌ ERROR: ID de caja no encontrado."
+        )
+
+    if datos.hu_silena:
+        caja.hu_silena_outbound = datos.hu_silena
+
+    if datos.numero_salida:
+        caja.numero_salida_delivery = datos.numero_salida
+
+    if datos.handling_unit:
+        caja.hu_final_embarque = datos.handling_unit
+
+    if datos.fecha_envio != "":
+        caja.fecha_envio = datos.fecha_envio
+
+    # Cambiamos estado para saber que ya se procesó
+    caja.estado = "PREPARADO_SALIDA"
+
+    db.commit()
+    return {"mensaje": "✅ DATOS DE SALIDA GUARDADOS CORRECTAMENTE"}
+
+
+# --- FUNCIÓN AUXILIAR PARA FILTROS ---
+def aplicar_filtros(
+    query, dmc, hu_entrada, hu_salida, fecha_inicio, fecha_fin, fecha_caducidad
+):
+    # 1. Join obligatorio: Celda siempre pertenece a una Caja
+    query = query.join(models.Celda.caja_destino)
+
+    # 2. Join opcional: Palet de entrada (puede no estar registrado si el admin es lento)
+    query = query.outerjoin(
+        models.PaletEntrada,
+        models.Celda.hu_origen_id == models.PaletEntrada.hu_proveedor,
+    )
+
+    # --- FILTROS DINÁMICOS ---
+    if dmc:
+        query = query.filter(models.Celda.dmc_code.contains(dmc))
+
+    if hu_entrada:
+        query = query.filter(models.PaletEntrada.hu_proveedor.contains(hu_entrada))
+
+    if hu_salida:
+        # Puede ser el HU Silena o el HU Embarque Final
+        query = query.filter(
+            models.CajaReempaque.hu_silena_outbound.contains(hu_salida)
+        )
+
+    if fecha_caducidad:
+        hoy = date.today()
+        query = query.filter(
+            models.Celda.fecha_caducidad >= hoy,
+            models.Celda.fecha_caducidad <= fecha_caducidad,
+        )
+
+    # Filtro de fecha de escaneo (usamos la fecha de la caja de reempaque final)
+    if fecha_inicio and fecha_fin:
+        dt_fin_base = datetime.combine(fecha_fin, time.min)
+
+        fecha_fin = dt_fin_base + timedelta(days=1)
+
+        query = query.filter(
+            models.CajaReempaque.fecha_fin_reempaque.between(fecha_inicio, fecha_fin)
+        )
+
+    return query
+
+
+# --- ENDPOINT 1: VISTA PREVIA (JSON para la Web) ---
+@router.get("/consulta/preview")
+def buscar_preview(
+    dmc: Optional[str] = None,
+    hu_entrada: Optional[str] = None,
+    hu_salida: Optional[str] = None,
+    fecha_inicio: Optional[datetime] = None,
+    fecha_fin: Optional[datetime] = None,
+    fecha_caducidad: Optional[date] = None,
     db: Session = Depends(get_db),
 ):
-    query = db.query(models.Caja)
-    if estado:
-        query = query.filter(models.Caja.estado == estado)
-    return query.order_by(desc(models.Caja.id)).offset(skip).limit(limit).all()
-
-
-@router.post("/generar-hu/{caja_id}")
-def generar_hu_silena(caja_id: int, db: Session = Depends(get_db)):
-    caja = db.query(models.Caja).filter(models.Caja.id == caja_id).first()
-    if not caja:
-        raise HTTPException(status_code=404, detail="Caja no encontrada")
-
-    nuevo_hu = (
-        f"SIL-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:4].upper()}"
+    base_query = db.query(models.Celda)
+    query = aplicar_filtros(
+        base_query, dmc, hu_entrada, hu_salida, fecha_inicio, fecha_fin, fecha_caducidad
     )
-    caja.hu_silena_outbound = nuevo_hu
-    caja.registro_silena = "OK"
-    db.commit()
-    return {"mensaje": "HU Generado", "hu_silena": nuevo_hu}
+
+    # Limitamos a 50 para la web
+    resultados = query.limit(50).all()
+
+    data = []
+    for celda in resultados:
+        # Lógica de extracción (idéntica a la del CSV)
+        palet = celda.palet_origen
+        caja = celda.caja_destino
+
+        # Mapeo exacto de las 17 columnas
+        row = {
+            "fecha_recibo": palet.fecha_recibo if palet else None,  # 1
+            "awb": palet.awb_swb if palet else "",  # 2
+            "np": palet.np_packing_list if palet else "",  # 3
+            "status": getattr(palet, "generation_status", "") if palet else "",  # 4
+            "hu_proveedor": palet.hu_proveedor if palet else "",  # 5
+            "caducidad_inbound": celda.fecha_caducidad,  # 6
+            "fecha_reempaque": caja.fecha_fin_reempaque if caja else None,  # 7
+            # "registro_silena": "SI" if caja and caja.hu_silena_outbound else "NO",  # 8
+            "dmc": celda.dmc_code,  # 9
+            "caducidad_celda": celda.fecha_caducidad,  # 10
+            "caducidad_antigua": celda.fecha_caducidad,  # 11
+            "fecha_almacenamiento": getattr(caja, "fecha_almacenamiento", None),  # 12
+            "hu_silena": getattr(caja, "hu_silena_outbound", "") or "",  # 13
+            "ubicacion": getattr(caja, "ubicacion_estanteria", "") or "",  # 14
+            "n_salida": getattr(caja, "numero_salida_delivery", "") or "",  # 15
+            "hu_final": getattr(caja, "hu_final_embarque", "") or "",  # 16
+            "fecha_envio": getattr(caja, "fecha_envio", None),  # 17
+        }
+        data.append(row)
+
+    return data
 
 
-# --- ACTUALIZACIONES INCOMING/OUTBOUND ---
-@router.patch("/actualizar-incoming")
-def actualizar_incoming(datos: schemas.IncomingUpdate, db: Session = Depends(get_db)):
-    db.query(models.Caja).filter(models.Caja.id.in_(datos.caja_ids)).update(
-        {
-            models.Caja.awb_swb: datos.awb_swb,
-            models.Caja.np_packing_list: datos.np_packing_list,
-            models.Caja.hu_palet_proveedor: datos.hu_palet_proveedor,
-            models.Caja.fecha_recibo_almacen: datos.fecha_recibo,
-        },
-        synchronize_session=False,
+# --- ENDPOINT 2: DESCARGA CSV (Streaming para Excel) ---
+@router.get("/consulta/exportar")
+def exportar_csv(
+    dmc: Optional[str] = None,
+    hu_entrada: Optional[str] = None,
+    hu_salida: Optional[str] = None,
+    fecha_inicio: Optional[datetime] = None,
+    fecha_fin: Optional[datetime] = None,
+    fecha_caducidad: Optional[date] = None,
+    db: Session = Depends(get_db),
+):
+    base_query = db.query(models.Celda)
+    query = aplicar_filtros(
+        base_query, dmc, hu_entrada, hu_salida, fecha_inicio, fecha_fin, fecha_caducidad
     )
-    db.commit()
-    return {"mensaje": "Incoming actualizado"}
 
-
-@router.patch("/actualizar-outbound")
-def actualizar_outbound(datos: schemas.OutboundUpdate, db: Session = Depends(get_db)):
-    db.query(models.Caja).filter(models.Caja.id.in_(datos.caja_ids)).update(
-        {
-            models.Caja.numero_salida_delivery: datos.numero_salida_delivery,
-            models.Caja.fecha_envio: datos.fecha_envio,
-            models.Caja.estado: "EXPEDIDA",
-        },
-        synchronize_session=False,
-    )
-    db.commit()
-    return {"mensaje": "Outbound actualizado"}
-
-
-# --- EXPORTACIÓN CSV ---
-@router.get("/exportar-csv")
-def exportar_reporte(db: Session = Depends(get_db)):
-    def iterador():
+    def iterar_filas():
         output = io.StringIO()
-        writer = csv.writer(output, delimiter=";")
-        # Cabeceras completas
-        writer.writerow(
-            [
-                "ID",
-                "Fecha Recibo",
-                "AWB",
-                "Packing List",
-                "HU Proveedor",
-                "Caducidad Proveedor",
-                "HU Origen Celda",
-                "DMC",
-                "Caducidad Celda",
-                "Usuario",
-                "Inicio",
-                "Fin",
-                "Reg. Silena",
-                "Caducidad Peor Caso",
-                "Fecha Almacen",
-                "ID Temp",
-                "HU Silena",
-                "Ubicacion",
-                "Delivery",
-                "HU Final",
-                "Fecha Envio",
-            ]
-        )
+        writer = csv.writer(output, delimiter=";")  # ';' para Excel europeo
+
+        # 1. CABECERAS (Ordenadas según tu imagen)
+        headers = [
+            "Fecha Recibo Almacén",
+            "AWB / SWB",
+            "NP Packing List",
+            "Generation Status",
+            "HU Palet Proveedor",
+            "Caducidad Celdas (Inbound)",
+            "Fecha Reempaque",
+            # "Registro en Silena",
+            "DMC",
+            "Caducidad Celda",
+            "Caducidad más antigua",
+            "Fecha Almacenamiento",
+            "HU Silena (Outbound)",
+            "Ubicación Estantería",
+            "Nº Salida / Delivery",
+            "Handling Unit",
+            "Fecha de Envío",
+        ]
+        writer.writerow(headers)
         yield output.getvalue()
         output.seek(0)
         output.truncate(0)
 
-        query = db.query(models.Caja).join(models.Celda).yield_per(1000)
-        for caja in query:
-            for celda in caja.celdas:
-                writer.writerow(
-                    [
-                        caja.id,
-                        caja.fecha_recibo_almacen,
-                        caja.awb_swb,
-                        caja.np_packing_list,
-                        caja.hu_palet_proveedor,
-                        caja.fecha_caducidad_proveedor,
-                        celda.hu_origen_celda,
-                        celda.dmc_code,
-                        celda.fecha_caducidad,
-                        caja.usuario_reempaque_id,
-                        caja.fecha_inicio_reempaque,
-                        caja.fecha_reempaque,
-                        caja.registro_silena,
-                        caja.fecha_caducidad_mas_antigua,
-                        caja.fecha_almacenamiento,
-                        caja.id_temporal,
-                        caja.hu_silena_outbound,
-                        caja.ubicacion_estanteria,
-                        caja.numero_salida_delivery,
-                        caja.hu_final_embarque,
-                        caja.fecha_envio,
-                    ]
-                )
-                yield output.getvalue()
-                output.seek(0)
-                output.truncate(0)
+        for celda in query.yield_per(1000):
+            palet = celda.palet_origen
+            caja = celda.caja_destino
 
-    return StreamingResponse(
-        iterador(),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=reporte.csv"},
+            # Extracción segura de datos
+            f_recibo = palet.fecha_recibo if palet else ""
+            awb = palet.awb_swb if palet else ""
+            np = palet.np_packing_list if palet else ""
+            status = getattr(palet, "generation_status", "") if palet else ""
+            hu_prov = palet.hu_proveedor if palet else ""
+
+            caducidad = celda.fecha_caducidad if celda.fecha_caducidad else ""
+            dmc_code = celda.dmc_code
+
+            f_reempaque = caja.fecha_fin_reempaque if caja else ""
+            # reg_silena = "SI" if caja and caja.hu_silena_outbound else "NO"
+
+            f_almacen = getattr(caja, "fecha_almacenamiento", "") or ""
+            hu_silena = getattr(caja, "hu_silena_outbound", "") or ""
+            ubicacion = getattr(caja, "ubicacion_estanteria", "") or ""
+            n_salida = getattr(caja, "numero_salida_delivery", "") or ""
+            hu_final = getattr(caja, "hu_final_embarque", "") or ""
+            f_envio = getattr(caja, "fecha_envio", "") or ""
+
+            writer.writerow(
+                [
+                    f_recibo,
+                    awb,
+                    np,
+                    status,
+                    hu_prov,
+                    caducidad,
+                    f_reempaque,
+                    # reg_silena,
+                    dmc_code,
+                    caducidad,
+                    caducidad,
+                    f_almacen,
+                    hu_silena,
+                    ubicacion,
+                    n_salida,
+                    hu_final,
+                    f_envio,
+                ]
+            )
+
+            yield output.getvalue()
+            output.seek(0)
+            output.truncate(0)
+
+    response = StreamingResponse(iterar_filas(), media_type="text/csv")
+    response.headers["Content-Disposition"] = (
+        f"attachment; filename=Trazabilidad_{date.today()}.csv"
     )
+    return response

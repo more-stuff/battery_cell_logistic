@@ -6,9 +6,7 @@ from sqlalchemy.orm import sessionmaker
 # 1. URL DE CONEXIÓN
 # Si usaste Docker con mi comando anterior, la DB se llama "app_industrial_db"
 # Si la instalaste a mano y no creaste DB, cambia "app_industrial_db" por "postgres"
-SQLALCHEMY_DATABASE_URL = (
-    "postgresql://postgres:mi_contraseña_segura@localhost/app_industrial_db"
-)
+SQLALCHEMY_DATABASE_URL = "postgresql://postgres:admin@localhost/trazabilidad"
 
 # 2. CREAR EL MOTOR (Con Pooling activado para concurrencia)
 engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_size=20, max_overflow=10)
