@@ -14,10 +14,11 @@ export const Etiqueta = ({ id, fecha }) => {
       <div style={estilos.barcodeBox}>
         <Barcode
           value={id || "PENDIENTE"}
+          format="CODE128"
           width={2}
           height={60}
           fontSize={16}
-          displayValue={true}
+          displayValue={false}
         />
       </div>
 

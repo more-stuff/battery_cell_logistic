@@ -1,15 +1,15 @@
 import { useState, useRef } from "react";
 import { useReactToPrint } from "react-to-print"; // <--- IMPORTANTE
-import { usePaquete } from "./hooks/usePaquete";
-import Login from "./components/Login";
-import Header from "./components/Header";
-import PanelEscaneo from "./components/PanelEscaneo";
-import PanelHistorico from "./components/PanelHistorico";
-import { Etiqueta } from "./components/Etiqueta"; // <--- IMPORTANTE
-import "./App.css";
+import { usePaquete } from "../hooks/usePaquete";
+import Login from "./Login";
+import Header from "./Header";
+import PanelEscaneo from "./PanelEscaneo";
+import PanelHistorico from "./PanelHistorico";
+import { Etiqueta } from "./Etiqueta"; // <--- IMPORTANTE
 // ... imports y lógica del hook (usePaquete) arriba ...
+import "../styles/Operario.css";
 
-function App() {
+function Operario() {
   const [usuario, setUsuario] = useState("");
   const [logueado, setLogueado] = useState(false);
 
@@ -32,16 +32,13 @@ function App() {
   } = usePaquete(usuario);
 
   // 1. CREAMOS LA REFERENCIA PARA LA IMPRESORA
-  const componentRef = useRef();
+  const componentRef = useRef(null);
 
-  // 2. CONFIGURAMOS LA FUNCIÓN DE IMPRIMIR
   const handlePrint = useReactToPrint({
-    content: () => componentRef.current, // Le decimos qué parte imprimir
-    documentTitle: `Etiqueta_${idGuardado}`, // Nombre del archivo si guarda en PDF
-    onAfterPrint: () => console.log("Impresión lanzada"), // Opcional
+    contentRef: componentRef, // ✅ v3
+    documentTitle: `Etiqueta_${idGuardado}`,
+    onAfterPrint: () => console.log("Impresión lanzada"),
   });
-
-  const onPrintClick = () => setTimeout(handlePrint, 0);
 
   // 1. VISTA DE LOGIN (Si no está logueado)
   if (!logueado) {
@@ -199,19 +196,17 @@ function App() {
                   margin: "20px 0",
                 }}
               >
-                <div ref={componentRef}>
-                  <Etiqueta
-                    id={idGuardado}
-                    fecha={new Date().toLocaleDateString()}
-                  />
-                </div>
+                <Etiqueta
+                  id={idGuardado}
+                  fecha={new Date().toLocaleDateString()}
+                />
               </div>
             </div>
 
             {/* BOTONERA */}
             <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
               <button
-                onClick={onPrintClick}
+                onClick={handlePrint}
                 style={{
                   flex: 1,
                   padding: "15px",
@@ -262,12 +257,57 @@ function App() {
         />
 
         {/* PANEL DERECHO (HISTÓRICO) */}
-        <PanelHistorico celdas={celdas} onBorrar={borrarCelda} />
+        <div className="historico-container" style={{ position: "relative" }}>
+          {/* Botón flotante elegante que no desplaza la tabla */}
+          {celdas.length > 0 && (
+            <button
+              onClick={() => {
+                if (window.confirm("¿Vaciar lista de escaneos actual?")) {
+                  resetProceso();
+                }
+              }}
+              style={{
+                position: "absolute",
+                right: "15px",
+                top: "12px", // Ajusta según la altura de la cabecera del PanelHistorico
+                zIndex: 10,
+                padding: "5px 10px",
+                backgroundColor: "#fef2f2",
+                color: "#dc2626",
+                border: "1px solid #fecaca",
+                borderRadius: "6px",
+                fontSize: "11px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseOver={(e) => (e.target.style.backgroundColor = "#fee2e2")}
+              onMouseOut={(e) => (e.target.style.backgroundColor = "#fef2f2")}
+            >
+              🗑️ LIMPIAR
+            </button>
+          )}
+          <PanelHistorico celdas={celdas} onBorrar={borrarCelda} />
+        </div>
       </main>
       {/* Esto está oculto al ojo (display: none) pero SIEMPRE existe en el HTML. */}
+      <div
+        style={{
+          position: "absolute",
+          left: "-10000px",
+          top: 0,
+        }}
+      >
+        <div ref={componentRef}>
+          <Etiqueta
+            id={idGuardado ?? ""}
+            fecha={new Date().toLocaleDateString()}
+          />
+        </div>
+      </div>
       {/* Al estar fuera del condicional {idGuardado && ...}, React lo encuentra siempre. */}
     </div>
   );
 }
 
-export default App;
+export default Operario;

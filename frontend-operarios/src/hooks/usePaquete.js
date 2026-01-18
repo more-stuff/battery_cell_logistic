@@ -62,18 +62,18 @@ export const usePaquete = (usuario) => {
     const rawDate = celdaInput.slice(-6); // Ej: 311225
     const dia = parseInt(rawDate.substring(0, 2));
     const mes = parseInt(rawDate.substring(2, 4));
-    const anio = parseInt("20" + rawDate.substring(4, 6));
+    const year = parseInt("20" + rawDate.substring(4, 6));
 
     // Validar si es una fecha real (ej: que no sea mes 13 o día 32)
-    const fechaObj = new Date(anio, mes - 1, dia);
+    const fechaObj = new Date(year, mes - 1, dia);
     const esFechaValida =
-      fechaObj.getFullYear() === anio &&
+      fechaObj.getFullYear() === year &&
       fechaObj.getMonth() === mes - 1 &&
       fechaObj.getDate() === dia;
 
     if (!esFechaValida) {
       return {
-        error: `❌ La fecha extraída (${dia}/${mes}/${anio}) NO es válida. Revisa el código.`,
+        error: `❌ La fecha extraída (${dia}/${mes}/${year}) NO es válida. Revisa el código.`,
       };
     }
 
@@ -81,7 +81,7 @@ export const usePaquete = (usuario) => {
     // IMPORTANTE: Asegúrate de añadir ceros a la izquierda si hace falta (01 en vez de 1)
     const mesStr = mes.toString().padStart(2, "0");
     const diaStr = dia.toString().padStart(2, "0");
-    const fechaFormateada = `${anio}-${mesStr}-${diaStr}`;
+    const fechaFormateada = `${year}-${mesStr}-${diaStr}`;
 
     // 3. GESTIÓN DE FECHA INICIO
     if (celdas.length === 0 && !fechaInicio) {
@@ -123,7 +123,10 @@ export const usePaquete = (usuario) => {
   };
 
   const resetProceso = () => {
-    setIdGuardado(null);
+    setHuActual(""); // Limpia el input de caja
+    setCeldaInput(""); // Limpia el input de pieza
+    setCeldas([]); // <--- ESTA ES LA CLAVE: vacía el array de la tabla
+    setIdGuardado(null); // Quita el modal de éxito
   };
 
   const enviarDatos = async () => {

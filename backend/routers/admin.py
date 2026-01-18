@@ -5,6 +5,7 @@ from sqlalchemy import or_, and_
 from typing import Optional
 from pydantic import BaseModel
 from datetime import date, datetime, time, timedelta
+from urllib.parse import unquote
 import csv
 import io
 
@@ -97,10 +98,14 @@ def registrar_salida(datos: schemas.OutboundData, db: Session = Depends(get_db))
     return {"mensaje": "✅ DATOS DE SALIDA GUARDADOS CORRECTAMENTE"}
 
 
+from sqlalchemy import text
+
+
 # --- FUNCIÓN AUXILIAR PARA FILTROS ---
 def aplicar_filtros(
     query, dmc, hu_entrada, hu_salida, fecha_inicio, fecha_fin, fecha_caducidad
 ):
+
     # 1. Join obligatorio: Celda siempre pertenece a una Caja
     query = query.join(models.Celda.caja_destino)
 
@@ -112,7 +117,13 @@ def aplicar_filtros(
 
     # --- FILTROS DINÁMICOS ---
     if dmc:
-        query = query.filter(models.Celda.dmc_code.contains(dmc))
+        dmc_limpio = unquote(dmc).strip()
+
+        # Convertimos AMBOS lados a Hexadecimal (md5) para comparar.
+        # Si esto falla, es que los datos SON DIFERENTES y punto.
+        query = query.filter(text("md5(dmc_code) = md5(:valor)")).params(
+            valor=dmc_limpio
+        )
 
     if hu_entrada:
         query = query.filter(models.PaletEntrada.hu_proveedor.contains(hu_entrada))
@@ -154,6 +165,7 @@ def buscar_preview(
     fecha_caducidad: Optional[date] = None,
     db: Session = Depends(get_db),
 ):
+
     base_query = db.query(models.Celda)
     query = aplicar_filtros(
         base_query, dmc, hu_entrada, hu_salida, fecha_inicio, fecha_fin, fecha_caducidad
