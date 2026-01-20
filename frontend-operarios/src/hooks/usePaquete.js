@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { enviarPaquete } from "../services/api";
+import Swal from "sweetalert2";
 
 const CONFIGURACION = {
   limite_paquete: 180,
@@ -11,54 +12,91 @@ export const usePaquete = (usuario) => {
   const [celdaInput, setCeldaInput] = useState("");
   const [celdas, setCeldas] = useState([]);
   const [fechaInicio, setFechaInicio] = useState(null);
-  const [alertaRevision, setAlertaRevision] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  // NUEVO ESTADO: Para guardar el ID que nos devuelve el servidor
-  const [idGuardado, setIdGuardado] = useState(null);
+  const [idGuardado, setIdGuardado] = useState(null); //  Para guardar el ID que nos devuelve el servidor
 
-  // --- PERSISTENCIA (useEffect) ---
-  useEffect(() => {
-    const backupCeldas = localStorage.getItem("paquete_en_curso");
-    if (backupCeldas) setCeldas(JSON.parse(backupCeldas));
+  // gestion del localstorage
+  const userKey = usuario ? `_${usuario}` : "";
 
-    const backupHU = localStorage.getItem("hu_actual_persistente");
-    if (backupHU) setHuActual(backupHU);
-
-    const backupInicio = localStorage.getItem("fecha_inicio_paquete");
-    if (backupInicio) setFechaInicio(backupInicio);
-  }, []);
+  const KEY_CELDAS = `paquete_en_curso${userKey}`;
+  const KEY_HU = `hu_actual${userKey}`;
+  const KEY_FECHA = `fecha_inicio${userKey}`;
 
   useEffect(() => {
-    localStorage.setItem("paquete_en_curso", JSON.stringify(celdas));
-  }, [celdas]);
+    if (!usuario) {
+      // Si no hay usuario (estamos en login), limpiamos la memoria del hook
+      setCeldas([]);
+      setHuActual("");
+      setFechaInicio(null);
+      return;
+    }
+
+    // Intentamos leer del LocalStorage PERSONALIZADO de este usuario
+    const savedCeldas = localStorage.getItem(KEY_CELDAS);
+    const savedHu = localStorage.getItem(KEY_HU);
+    const savedFecha = localStorage.getItem(KEY_FECHA);
+
+    if (savedCeldas) {
+      setCeldas(JSON.parse(savedCeldas));
+    } else {
+      setCeldas([]); // Si es un usuario nuevo, empezamos limpio
+    }
+
+    if (savedHu) setHuActual(savedHu);
+    else setHuActual("");
+
+    if (savedFecha) setFechaInicio(savedFecha);
+    else setFechaInicio(null);
+  }, [usuario]);
+
+  // --- PERSISTENCIA (useEffect) --
+  useEffect(() => {
+    if (usuario) {
+      localStorage.setItem(KEY_CELDAS, JSON.stringify(celdas));
+    }
+  }, [celdas, usuario]); // Añadimos 'usuario' a dependencias
 
   useEffect(() => {
-    localStorage.setItem("hu_actual_persistente", huActual);
-  }, [huActual]);
+    if (usuario) {
+      localStorage.setItem(KEY_HU, huActual);
+    }
+  }, [huActual, usuario]);
 
   useEffect(() => {
-    if (fechaInicio) localStorage.setItem("fecha_inicio_paquete", fechaInicio);
-    else localStorage.removeItem("fecha_inicio_paquete");
-  }, [fechaInicio]);
+    if (usuario) {
+      if (fechaInicio) localStorage.setItem(KEY_FECHA, fechaInicio);
+      else localStorage.removeItem(KEY_FECHA);
+    }
+  }, [fechaInicio, usuario]);
 
   // --- ACCIONES ---
 
   const agregarCelda = () => {
     // 1. VALIDACIONES BÁSICAS
-    if (!huActual) return { error: "⚠️ Introduce el HU de la caja primero." };
+    if (!huActual)
+      return {
+        error: "⚠️ Introduce el HU de la caja primero.",
+        type: "short_error",
+      };
     if (!celdaInput) return;
     if (celdaInput.length < 6)
-      return { error: "⚠️ Código muy corto (Faltan datos)." };
+      return {
+        error: "⚠️ Código muy corto (Faltan datos).",
+        type: "short_error",
+      };
     if (celdas.length >= CONFIGURACION.limite_paquete)
-      return { error: "📦 Paquete lleno." };
+      return { error: "📦 Paquete lleno.", type: "duplicate_error" };
 
     // Evitar duplicados
     if (celdas.some((c) => c.codigo_celda === celdaInput)) {
       setCeldaInput("");
-      return { error: "⛔ Pieza YA escaneada anteriormente." };
+      return {
+        error: "⛔ Pieza YA escaneada anteriormente.",
+        type: "duplicate_error",
+      };
     }
 
-    // 2. EXTRACCIÓN Y VALIDACIÓN DE FECHA (¡NUEVO!)
+    // 2. EXTRACCIÓN Y VALIDACIÓN DE FECHA
     const rawDate = celdaInput.slice(-6); // Ej: 311225
     const dia = parseInt(rawDate.substring(0, 2));
     const mes = parseInt(rawDate.substring(2, 4));
@@ -74,6 +112,7 @@ export const usePaquete = (usuario) => {
     if (!esFechaValida) {
       return {
         error: `❌ La fecha extraída (${dia}/${mes}/${year}) NO es válida. Revisa el código.`,
+        type: "date_error",
       };
     }
 
@@ -104,22 +143,21 @@ export const usePaquete = (usuario) => {
 
     // Alerta preventiva
     const siguientePieza = nuevasCeldas.length + 1;
-    if (
+    const requiereRevision =
       siguientePieza % CONFIGURACION.alerta_cada === 0 &&
-      siguientePieza <= CONFIGURACION.limite_paquete
-    ) {
-      setAlertaRevision(true);
-    }
+      siguientePieza <= CONFIGURACION.limite_paquete;
 
-    return { success: true };
+    return {
+      success: true,
+      revision: requiereRevision, // true o false
+      numeroPieza: siguientePieza, // Para mostrarlo en la alerta
+    };
   };
 
   const borrarCelda = (index) => {
-    if (confirm("¿Borrar lectura?")) {
-      const nuevas = celdas.filter((_, i) => i !== index);
-      setCeldas(nuevas);
-      if (nuevas.length === 0) setFechaInicio(null);
-    }
+    const nuevas = celdas.filter((_, i) => i !== index);
+    setCeldas(nuevas);
+    if (nuevas.length === 0) setFechaInicio(null);
   };
 
   const resetProceso = () => {
@@ -131,7 +169,18 @@ export const usePaquete = (usuario) => {
 
   const enviarDatos = async () => {
     if (celdas.length < CONFIGURACION.limite_paquete) {
-      if (!confirm("⚠️ Paquete incompleto. ¿Enviar igual?")) return;
+      // por seguridad pero no le va a dejar igualmente
+      const faltantes = CONFIGURACION.limite_paquete - celdas.length;
+
+      Swal.fire({
+        icon: "error",
+        title: "⛔ CAJA INCOMPLETA",
+        text: `No se puede cerrar la caja. Faltan ${faltantes} piezas para llegar a ${CONFIGURACION.limite_paquete}.`,
+        confirmButtonColor: "#d33",
+        confirmButtonText: "Entendido, seguir escaneando",
+      });
+
+      return;
     }
 
     setEnviando(true);
@@ -159,10 +208,12 @@ export const usePaquete = (usuario) => {
       setHuActual("");
       localStorage.removeItem("paquete_en_curso");
       localStorage.removeItem("fecha_inicio_paquete");
-
-      alert(`✅ GUARDADO. ETIQUETA: ${respuesta.id_temporal}`);
     } catch (error) {
-      alert("❌ Error enviando datos al servidor");
+      Swal.fire({
+        title: "Error de Servidor",
+        text: "No se pudieron enviar los datos. Inténtalo de nuevo.",
+        icon: "error",
+      });
       console.error(error);
     } finally {
       setEnviando(false);
@@ -177,8 +228,8 @@ export const usePaquete = (usuario) => {
     celdaInput,
     setCeldaInput,
     celdas,
-    alertaRevision,
-    setAlertaRevision,
+    //alertaRevision,
+    //setAlertaRevision,
     enviando,
     idGuardado,
     resetProceso,

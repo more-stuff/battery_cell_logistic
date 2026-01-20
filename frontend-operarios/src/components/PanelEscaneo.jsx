@@ -1,4 +1,5 @@
 import { useRef, useEffect } from "react";
+import Swal from "sweetalert2";
 
 export default function PanelEscaneo({
   hu,
@@ -9,10 +10,34 @@ export default function PanelEscaneo({
   onEnviar,
   enviando,
   numCeldas,
+  limite,
 }) {
   const inputRef = useRef(null);
+  const estaLleno = numCeldas >= limite;
 
-  // 1. CORRECCIÓN: Array vacío [] al final.
+  const reproducirSonido = (archivo) => {
+    //const audio = new Audio(`./resources/sounds/${archivo}.mp3`);
+    const sonidosOnline = {
+      ok: "https://assets.mixkit.co/active_storage/sfx/2578/2578-preview.mp3",
+      error_duplicado:
+        "https://assets.mixkit.co/active_storage/sfx/950/950-preview.mp3",
+      error_fecha:
+        "https://assets.mixkit.co/active_storage/sfx/2658/2658-preview.mp3",
+      error_corto:
+        "https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3",
+      alerta_calidad:
+        "https://assets.mixkit.co/active_storage/sfx/1002/1002-preview.mp3",
+    };
+
+    // Si existe en el diccionario online, usa ese link, si no, busca en local
+    const url = sonidosOnline[archivo] || `/sounds/${archivo}.mp3`;
+
+    const audio = new Audio(url);
+    audio
+      .play()
+      .catch((err) => console.error("Error reproduciendo audio:", err));
+  };
+
   // Esto hace que solo se ejecute UNA vez al cargar la página, no cada vez que escribes.
   useEffect(() => {
     setTimeout(() => {
@@ -24,14 +49,62 @@ export default function PanelEscaneo({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const res = onEscanear();
+    const res = onEscanear(); // Ejecutamos la lógica del hook
+    const sonido = res.type || "short_error";
+    reproducirSonido(sonido);
 
+    // CASO 1: ERROR (Duplicado, fecha mal, etc.)
     if (res?.error) {
-      alert(res.error);
+      Swal.fire({
+        icon: "error",
+        title: "¡Error!",
+        text: res.error,
+        timer: 3000,
+        showConfirmButton: false,
+      });
+      return;
+    }
+
+    // CASO 2: CONTROL DE CALIDAD (NUEVO)
+    if (res?.revision) {
+      reproducirSonido("quality_check");
+
+      Swal.fire({
+        title: "🛑 CONTROL DE CALIDAD",
+        html: `
+          <p style="font-size: 1.1em">Protocolo de revisión requerido para la pieza:</p>
+          <div style="
+            font-size: 4rem;
+            color: #c0392b;
+            font-weight: bold;
+            margin: 10px 0;
+            background: #fadbd8;
+            border-radius: 10px;
+            padding: 10px;
+          ">
+            #${res.numeroPieza}
+          </div>
+          <p>Separa esta unidad para <b>validación de calidad física</b>.</p>
+        `,
+        icon: "warning",
+        confirmButtonText: "✅ LEÍDO Y VERIFICADO",
+        confirmButtonColor: "#2c3e50", // Tu color primario
+        width: 600,
+        padding: "2em",
+        allowOutsideClick: false, // IMPORTANTE: Obliga a pulsar el botón
+        allowEscapeKey: false, // IMPORTANTE: No se cierra con ESC
+        backdrop: `
+          rgba(0,0,0,0.85)
+          left top
+          no-repeat
+        `,
+      }).then(() => {
+        // Al dar clic en OK, devolvemos el foco al input para seguir trabajando
+        setTimeout(() => inputRef.current?.focus(), 100);
+      });
     } else {
-      // 2. RE-ENFOQUE INTELIGENTE:
-      // Solo volvemos a poner el foco aquí si el escaneo fue ÉXITO.
-      // Así el operario puede seguir disparando con el lector sin tocar la pantalla.
+      // CASO 3: ÉXITO NORMAL (Sin revisión)
+      reproducirSonido("ok");
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
@@ -72,7 +145,7 @@ export default function PanelEscaneo({
           <button
             className="btn-send"
             onClick={onEnviar}
-            disabled={enviando || numCeldas === 0}
+            disabled={enviando || !estaLleno}
           >
             {enviando ? "ENVIANDO..." : "✅ FINALIZAR"}
           </button>

@@ -1,6 +1,24 @@
 import React from "react";
-
+import Swal from "sweetalert2";
 export default function PanelHistorico({ celdas, onBorrar }) {
+  const handleBorrar = (index) => {
+    Swal.fire({
+      title: "¿Borrar lectura?",
+      text: "Esta acción no se puede deshacer",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Sí, borrar",
+      cancelButtonText: "Cancelar",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        onBorrar(index); // <--- Llamamos al hook solo si confirma
+        Swal.fire("¡Borrado!", "La lectura ha sido eliminada.", "success");
+      }
+    });
+  };
+
   return (
     <section className="panel history-panel">
       <div className="panel-header">
@@ -58,11 +76,10 @@ export default function PanelHistorico({ celdas, onBorrar }) {
                           <span className="tag tag-ok">OK</span>
                         )}
                       </td>
-
                       <td style={{ textAlign: "center" }}>
                         <button
                           className="btn-trash"
-                          onClick={() => onBorrar(celdas.indexOf(celda))} // Borramos usando el índice real
+                          onClick={() => handleBorrar(celdas.indexOf(celda))} // Borramos usando el índice real
                           title="Eliminar registro"
                         >
                           🗑️
