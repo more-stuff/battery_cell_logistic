@@ -16,23 +16,7 @@ export default function PanelEscaneo({
   const estaLleno = numCeldas >= limite;
 
   const reproducirSonido = (archivo) => {
-    //const audio = new Audio(`./resources/sounds/${archivo}.mp3`);
-    const sonidosOnline = {
-      ok: "https://assets.mixkit.co/active_storage/sfx/2578/2578-preview.mp3",
-      error_duplicado:
-        "https://assets.mixkit.co/active_storage/sfx/950/950-preview.mp3",
-      error_fecha:
-        "https://assets.mixkit.co/active_storage/sfx/2658/2658-preview.mp3",
-      error_corto:
-        "https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3",
-      alerta_calidad:
-        "https://assets.mixkit.co/active_storage/sfx/1002/1002-preview.mp3",
-    };
-
-    // Si existe en el diccionario online, usa ese link, si no, busca en local
-    const url = sonidosOnline[archivo] || `/sounds/${archivo}.mp3`;
-
-    const audio = new Audio(url);
+    const audio = new Audio(`/sounds/${archivo}.mp3`);
     audio
       .play()
       .catch((err) => console.error("Error reproduciendo audio:", err));
@@ -51,10 +35,10 @@ export default function PanelEscaneo({
     e.preventDefault();
     const res = onEscanear(); // Ejecutamos la lógica del hook
     const sonido = res.type || "short_error";
-    reproducirSonido(sonido);
 
     // CASO 1: ERROR (Duplicado, fecha mal, etc.)
     if (res?.error) {
+      reproducirSonido(sonido);
       Swal.fire({
         icon: "error",
         title: "¡Error!",
