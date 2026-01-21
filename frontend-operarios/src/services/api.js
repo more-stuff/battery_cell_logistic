@@ -77,3 +77,28 @@ export const descargarCSV = async (filtros) => {
   link.click();
   link.remove();
 };
+
+export const obtenerConfiguracion = async () => {
+  try {
+    // CAMBIO: La ruta ahora es /admin/config
+    const response = await axios.get(`${API_URL}/admin/config`);
+    return response.data;
+  } catch (error) {
+    console.error("Usando config por defecto", error);
+    return { alerta_cada: 15, limite_caja: 180 };
+  }
+};
+
+export const guardarConfiguracion = async (clave, valor) => {
+  try {
+    // Ajusta la URL si tu endpoint está en /admin/config
+    const response = await axios.put(`${API_URL}/admin/config`, {
+      clave: clave,
+      valor: String(valor), // Lo enviamos siempre como string
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error guardando configuración", error);
+    throw error;
+  }
+};

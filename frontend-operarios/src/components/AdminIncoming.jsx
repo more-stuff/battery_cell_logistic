@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { actualizarIncoming } from "../services/api"; // <--- IMPORTACIÓN DE LA API
+import Swal from "sweetalert2"; // <--- IMPORTANTE: Importar SweetAlert
+import { actualizarIncoming } from "../services/api";
+import { estilos } from "../styles/AdminIncoming.styles";
 
 export const AdminIncoming = () => {
-  // Función auxiliar para obtener la hora actual en formato compatible con input (YYYY-MM-DDTHH:mm)
-
   // ESTADO DEL FORMULARIO
   const [formData, setFormData] = useState({
     hu_entrada: "",
@@ -24,21 +24,32 @@ export const AdminIncoming = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validación básica
+    // 1. VALIDACIÓN (WARNING)
     if (!formData.hu_entrada.trim()) {
-      alert("⚠️ EL HU DE ENTRADA ES OBLIGATORIO");
+      Swal.fire({
+        icon: "warning",
+        title: "Falta información",
+        text: "⚠️ EL HU DE ENTRADA ES OBLIGATORIO",
+        confirmButtonColor: "#e74c3c",
+      });
       return;
     }
 
     setLoading(true);
     try {
-      // 🚀 LLAMADA A LA API (SEPARADA)
+      // 🚀 LLAMADA A LA API
       const respuesta = await actualizarIncoming(formData);
 
-      // Feedback usuario
-      alert(respuesta.mensaje);
+      // 2. ÉXITO (SUCCESS)
+      Swal.fire({
+        icon: "success",
+        title: "¡Registrado!",
+        text: respuesta.mensaje,
+        timer: 2000,
+        showConfirmButton: false,
+      });
 
-      // Limpiamos formulario manteniendo la hora actualizada
+      // Limpiamos formulario
       setFormData({
         hu_entrada: "",
         fecha_recibo: "",
@@ -48,7 +59,13 @@ export const AdminIncoming = () => {
       });
     } catch (error) {
       console.error(error);
-      alert("❌ ERROR: No se pudo conectar con el servidor.");
+
+      // 3. ERROR (ERROR)
+      Swal.fire({
+        icon: "error",
+        title: "Error de conexión",
+        text: "❌ No se pudo conectar con el servidor.",
+      });
     } finally {
       setLoading(false);
     }
@@ -100,7 +117,7 @@ export const AdminIncoming = () => {
             <div style={estilos.grupo}>
               <label style={estilos.label}>📅 Fecha y Hora Recibo</label>
               <input
-                type="datetime-local" // <--- Selector de Fecha + Hora
+                type="datetime-local"
                 name="fecha_recibo"
                 value={formData.fecha_recibo}
                 onChange={handleChange}
@@ -112,7 +129,7 @@ export const AdminIncoming = () => {
             <div style={estilos.grupo}>
               <label style={estilos.label}>⏳ Fecha Caducidad</label>
               <input
-                type="date" // <--- Selector solo de Fecha
+                type="date"
                 name="fecha_caducidad"
                 value={formData.fecha_caducidad}
                 onChange={handleChange}
@@ -153,45 +170,4 @@ export const AdminIncoming = () => {
       </div>
     </div>
   );
-};
-
-// ESTILOS CSS-IN-JS
-const estilos = {
-  contenedor: {
-    minHeight: "100vh",
-    background: "#ecf0f1",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    fontFamily: "Arial",
-  },
-  card: {
-    background: "white",
-    width: "100%",
-    maxWidth: "700px",
-    padding: "40px",
-    borderRadius: "10px",
-    boxShadow: "0 5px 15px rgba(0,0,0,0.1)",
-  },
-  form: { display: "flex", flexDirection: "column", gap: "25px" },
-  grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" },
-  grupo: { display: "flex", flexDirection: "column", gap: "5px" },
-  label: { fontWeight: "bold", fontSize: "0.9rem", color: "#34495e" },
-  input: {
-    padding: "12px",
-    border: "1px solid #bdc3c7",
-    borderRadius: "5px",
-    fontSize: "1rem",
-  },
-  boton: {
-    padding: "15px",
-    background: "#2980b9",
-    color: "white",
-    border: "none",
-    borderRadius: "5px",
-    fontWeight: "bold",
-    fontSize: "1.1rem",
-    cursor: "pointer",
-    transition: "0.3s",
-  },
 };

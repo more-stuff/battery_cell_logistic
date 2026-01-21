@@ -1,9 +1,36 @@
 import { useState } from "react";
+import Swal from "sweetalert2";
 import { buscarPreview, descargarCSV } from "../services/api";
 import { estilos } from "../styles/AdminConsulta.styles";
 
+// Importamos los submódulos
+import { AdminFiltros } from "../components/admin/AdminFiltros";
+import { AdminSelector } from "../components/admin/AdminSelector";
+import { AdminToolbar } from "../components/admin/AdminToolbar";
+import { AdminTabla } from "../components/admin/AdminTabla";
+
+const COLUMNAS_DISPONIBLES = [
+  { id: "fecha_recibo", label: "F. Recibo" },
+  { id: "awb", label: "AWB / SWB" },
+  { id: "np", label: "NP Packing" },
+  { id: "status", label: "Status" },
+  { id: "hu_proveedor", label: "HU Proveedor" },
+  { id: "caducidad_inbound", label: "Cad. Inbound" },
+  { id: "fecha_reempaque", label: "F. Reempaque" },
+  { id: "operario", label: "👷 Operario (Interno)" },
+  { id: "hu_silena", label: "HU Silena" },
+  { id: "dmc", label: "DMC (Celda)" },
+  { id: "caducidad_celda", label: "Cad. Celda" },
+  { id: "caducidad_antigua", label: "Cad. Antigua" },
+  { id: "fecha_almacenamiento", label: "F. Almacén" },
+  { id: "ubicacion", label: "Ubicación" },
+  { id: "n_salida", label: "Nº Salida" },
+  { id: "hu_final", label: "HU Final" },
+  { id: "fecha_envio", label: "F. Envío" },
+];
+
 export const AdminConsulta = () => {
-  // --- 1. ESTADOS ---
+  // --- ESTADOS ---
   const [filtros, setFiltros] = useState({
     dmc: "",
     hu_entrada: "",
@@ -12,37 +39,43 @@ export const AdminConsulta = () => {
     fecha_inicio: "",
     fecha_fin: "",
   });
-
+  const [colsSeleccionadas, setColsSeleccionadas] = useState(
+    COLUMNAS_DISPONIBLES.map((c) => c.id),
+  );
   const [resultados, setResultados] = useState([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [loadingCSV, setLoadingCSV] = useState(false);
 
-  // --- 2. LÓGICA ---
-
-  const handleChange = (e) => {
+  // --- LÓGICA ---
+  const handleChange = (e) =>
     setFiltros({ ...filtros, [e.target.name]: e.target.value });
+
+  const toggleColumna = (id) => {
+    setColsSeleccionadas((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
+    );
   };
 
-  // Botones Rápidos de Fecha
+  const getParamsExtra = () => ({
+    cols: colsSeleccionadas.join(","),
+    labels: colsSeleccionadas
+      .map((id) => COLUMNAS_DISPONIBLES.find((c) => c.id === id)?.label)
+      .join(","),
+  });
+
   const setFechaRapida = (tipo) => {
     const hoy = new Date();
-    const hoyStr = hoy.toISOString().split("T")[0];
     let inicio = new Date();
-
-    if (tipo === "semana") {
-      inicio.setDate(hoy.getDate() - 7);
-    } else if (tipo === "mes") {
-      inicio.setMonth(hoy.getMonth() - 1);
-    }
+    if (tipo === "semana") inicio.setDate(hoy.getDate() - 7);
+    if (tipo === "mes") inicio.setMonth(hoy.getMonth() - 1);
 
     setFiltros({
       ...filtros,
       fecha_inicio: inicio.toISOString().split("T")[0],
-      fecha_fin: hoyStr,
+      fecha_fin: hoy.toISOString().split("T")[0],
     });
   };
 
-  // LIMPIAR TODO
   const limpiarTodo = () => {
     setFiltros({
       dmc: "",
@@ -55,40 +88,49 @@ export const AdminConsulta = () => {
     setResultados([]);
   };
 
-  // Buscar (Vista Previa)
+  // --- HANDLERS ---
   const handleSearch = async (e) => {
     e.preventDefault();
     setLoadingPreview(true);
     try {
-      const data = await buscarPreview(filtros);
+      const data = await buscarPreview({ ...filtros, ...getParamsExtra() });
       setResultados(data);
-      if (data.length === 0) alert("⚠️ No hay resultados con estos filtros.");
+      if (data.length === 0)
+        Swal.fire({
+          icon: "info",
+          title: "Sin resultados",
+          timer: 2000,
+          showConfirmButton: false,
+        });
     } catch (error) {
       console.error(error);
-      alert("❌ Error de conexión");
+      Swal.fire({ icon: "error", title: "Error de Conexión" });
     } finally {
       setLoadingPreview(false);
     }
   };
 
-  // Descargar CSV
   const handleDownload = async () => {
     setLoadingCSV(true);
     try {
-      await descargarCSV(filtros);
+      await descargarCSV({ ...filtros, ...getParamsExtra() });
+      const Toast = Swal.mixin({
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
+      Toast.fire({ icon: "success", title: "Descarga iniciada" });
     } catch (error) {
       console.error(error);
-      alert("❌ Error al descargar");
+      Swal.fire({ icon: "error", title: "Error de Descarga" });
     } finally {
       setLoadingCSV(false);
     }
   };
 
-  // Formateadores
-  const fFecha = (f) => (f ? new Date(f).toLocaleDateString() : "-");
-  const fFechaHora = (f) => (f ? new Date(f).toLocaleString() : "-");
-
-  // --- 3. RENDERIZADO ---
+  // --- RENDER ---
   return (
     <div style={estilos.contenedorPrincipal}>
       <div style={estilos.headerContainer}>
@@ -98,227 +140,37 @@ export const AdminConsulta = () => {
         </p>
       </div>
 
-      {/* === PANEL DE FILTROS (CARD) === */}
       <div style={estilos.cardFiltros}>
-        <div style={estilos.gridFiltros}>
-          {/* COLUMNA 1: Textos */}
-          <div style={estilos.columnaGrid}>
-            <label style={estilos.labelModern}>DMC Celda</label>
-            <input
-              name="dmc"
-              value={filtros.dmc}
-              onChange={handleChange}
-              style={estilos.inputModern}
-              placeholder="Ej: A1-B2..."
-            />
+        <form onSubmit={handleSearch} style={{ width: "100%" }}>
+          {/* 1. INPUTS */}
+          <AdminFiltros filtros={filtros} onChange={handleChange} />
 
-            <label style={estilos.labelModern}>HU Entrada (Proveedor)</label>
-            <input
-              name="hu_entrada"
-              value={filtros.hu_entrada}
-              onChange={handleChange}
-              style={estilos.inputModern}
-              placeholder="Ej: SUP-123"
-            />
+          {/* 2. SELECTOR DE COLUMNAS */}
+          <AdminSelector
+            disponibles={COLUMNAS_DISPONIBLES}
+            seleccionadas={colsSeleccionadas}
+            onToggle={toggleColumna}
+          />
 
-            <label style={estilos.labelModern}>HU Salida / Caja ID</label>
-            <input
-              name="hu_salida"
-              value={filtros.hu_salida}
-              onChange={handleChange}
-              style={estilos.inputModern}
-              placeholder="Ej: SIL-999"
-            />
-          </div>
-
-          {/* COLUMNA 2: Fechas */}
-          <div style={estilos.columnaGrid}>
-            <label style={estilos.labelModern}>Fecha Caducidad</label>
-            <input
-              type="date"
-              name="fecha_caducidad"
-              value={filtros.fecha_caducidad}
-              onChange={handleChange}
-              style={estilos.inputModern}
-            />
-
-            <label style={estilos.labelModern}>Escaneado Desde</label>
-            <input
-              type="date"
-              name="fecha_inicio"
-              value={filtros.fecha_inicio}
-              onChange={handleChange}
-              style={estilos.inputModern}
-            />
-
-            <label style={estilos.labelModern}>Escaneado Hasta</label>
-            <input
-              type="date"
-              name="fecha_fin"
-              value={filtros.fecha_fin}
-              onChange={handleChange}
-              style={estilos.inputModern}
-            />
-          </div>
-        </div>
-
-        {/* BARRA DE HERRAMIENTAS INFERIOR */}
-        <div style={estilos.toolbarFooter}>
-          {/* Izquierda: Atajos y Limpieza */}
-          <div style={estilos.toolbarLeft}>
-            <span style={estilos.labelAtajos}>ATAJOS:</span>
-            <div style={estilos.atajosGroup}>
-              <button
-                onClick={() => setFechaRapida("hoy")}
-                style={estilos.btnAtajo}
-              >
-                Hoy
-              </button>
-              <button
-                onClick={() => setFechaRapida("semana")}
-                style={estilos.btnAtajo}
-              >
-                Semana
-              </button>
-              <button
-                onClick={() => setFechaRapida("mes")}
-                style={estilos.btnAtajo}
-              >
-                Mes
-              </button>
-            </div>
-            <div style={estilos.dividerVertical}></div>
-            <button
-              onClick={limpiarTodo}
-              style={estilos.btnLimpiarModern}
-              title="Borrar todos los filtros"
-            >
-              <span>Borrar Filtros</span> 🗑️
-            </button>
-          </div>
-
-          {/* Derecha: Acciones Principales */}
-          <div style={estilos.toolbarRight}>
-            <button
-              onClick={handleSearch}
-              disabled={loadingPreview}
-              style={estilos.btnActionPrimary}
-            >
-              {loadingPreview ? "Cargando..." : "🔍 Vista Previa"}
-            </button>
-            <button
-              onClick={handleDownload}
-              disabled={loadingCSV}
-              style={estilos.btnActionSecondary}
-            >
-              {loadingCSV ? "Generando..." : "📥 Descargar Excel"}
-            </button>
-          </div>
-        </div>
+          {/* 3. TOOLBAR (BOTONES) */}
+          <AdminToolbar
+            onFechaRapida={setFechaRapida}
+            onLimpiar={limpiarTodo}
+            onDownload={handleDownload}
+            loadingPreview={loadingPreview}
+            loadingCSV={loadingCSV}
+            numCols={colsSeleccionadas.length}
+          />
+        </form>
       </div>
 
-      {/* === TABLA DE RESULTADOS (CARD) === */}
-      <div style={estilos.cardTabla}>
-        <div style={estilos.tablaWrapper}>
-          <table style={estilos.tablaModern}>
-            <thead>
-              <tr>
-                <th style={estilos.thModern}>F. Recibo</th>
-                <th style={estilos.thModern}>AWB</th>
-                <th style={estilos.thModern}>NP Packing</th>
-                <th style={estilos.thModern}>Status</th>
-                <th style={estilos.thModern}>HU Proveedor</th>
-                <th style={estilos.thModern}>Cad. Inbound</th>
-                <th style={estilos.thModern}>F. Reempaque</th>
-                <th style={estilos.thModern}>Reg. Silena</th>
-                <th style={estilos.thModern}>DMC (Celda)</th>
-                <th style={estilos.thModern}>Cad. Celda</th>
-                <th style={estilos.thModern}>Cad. Antigua</th>
-                <th style={estilos.thModern}>F. Almacén</th>
-                <th style={estilos.thModern}>HU Silena</th>
-                <th style={estilos.thModern}>Ubicación</th>
-                <th style={estilos.thModern}>Nº Salida</th>
-                <th style={estilos.thModern}>HU Final</th>
-                <th style={estilos.thModern}>F. Envío</th>
-              </tr>
-            </thead>
-            <tbody>
-              {resultados.map((row, index) => {
-                // Efecto cebra para las filas
-                const bgRow = index % 2 === 0 ? "#ffffff" : "#f9fafb";
-                return (
-                  <tr
-                    key={index}
-                    style={{
-                      backgroundColor: bgRow,
-                      borderBottom: "1px solid #e5e7eb",
-                    }}
-                  >
-                    <td style={estilos.tdModern}>{fFecha(row.fecha_recibo)}</td>
-                    <td style={estilos.tdModern}>{row.awb}</td>
-                    <td style={estilos.tdModern}>{row.np}</td>
-                    <td style={estilos.tdModern}>
-                      <span
-                        style={
-                          row.status === "OK"
-                            ? estilos.badgeOK
-                            : estilos.badgeNeutral
-                        }
-                      >
-                        {row.status || "-"}
-                      </span>
-                    </td>
-                    <td
-                      style={{
-                        ...estilos.tdModern,
-                        fontWeight: 600,
-                        color: "#2563eb",
-                      }}
-                    >
-                      {row.hu_proveedor}
-                    </td>
-                    <td style={estilos.tdModern}>{row.caducidad_inbound}</td>
-                    <td style={estilos.tdModern}>
-                      {fFechaHora(row.fecha_reempaque)}
-                    </td>
-                    <td style={estilos.tdModern}>{row.registro_silena}</td>
-                    <td
-                      style={{
-                        ...estilos.tdModern,
-                        fontWeight: 700,
-                        color: "#111827",
-                      }}
-                    >
-                      {row.dmc}
-                    </td>
-                    <td style={estilos.tdModern}>{row.caducidad_celda}</td>
-                    <td style={estilos.tdModern}>{row.caducidad_antigua}</td>
-                    <td style={estilos.tdModern}>
-                      {fFechaHora(row.fecha_almacenamiento)}
-                    </td>
-                    <td style={{ ...estilos.tdModern, fontWeight: 600 }}>
-                      {row.hu_silena}
-                    </td>
-                    <td style={estilos.tdModern}>{row.ubicacion}</td>
-                    <td style={estilos.tdModern}>{row.n_salida}</td>
-                    <td style={estilos.tdModern}>{row.hu_final}</td>
-                    <td style={estilos.tdModern}>
-                      {fFechaHora(row.fecha_envio)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
-          {resultados.length === 0 && !loadingPreview && (
-            <div style={estilos.emptyState}>
-              <span style={{ fontSize: "2rem" }}>📭</span>
-              <p>No hay datos que mostrar. Utiliza los filtros para empezar.</p>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* 4. TABLA DE RESULTADOS */}
+      <AdminTabla
+        resultados={resultados}
+        disponibles={COLUMNAS_DISPONIBLES}
+        seleccionadas={colsSeleccionadas}
+        loading={loadingPreview}
+      />
     </div>
   );
 };

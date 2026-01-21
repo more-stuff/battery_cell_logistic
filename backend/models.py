@@ -36,7 +36,7 @@ class CajaReempaque(Base):
 
     # --- FASE 1: REEMPAQUE (Operario) ---
     id_temporal = Column(String(50), unique=True, index=True)  # TMP-XXXX
-    usuario_id = Column(Integer)
+    usuario_id = Column(String(100))
 
     # Fechas específicas de la labor de reempaque
     fecha_inicio_reempaque = Column(DateTime)
@@ -85,3 +85,11 @@ class Celda(Base):
     # DATOS PROPIOS
     dmc_code = Column(String(200))
     fecha_caducidad = Column(Date)
+
+
+class Configuracion(Base):
+    __tablename__ = "configuraciones"
+
+    # Ejemplo: clave="alerta_cada", valor="15"
+    clave = Column(String(50), primary_key=True, index=True)
+    valor = Column(String(200))  # Lo guardamos como String para ser flexibles

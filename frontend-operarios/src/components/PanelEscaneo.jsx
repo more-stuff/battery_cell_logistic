@@ -119,7 +119,7 @@ export default function PanelEscaneo({
               value={celda}
               onChange={(e) => setCelda(e.target.value)}
               placeholder="Escanear Pieza..."
-              // El autoFocus aquí está bien para el primer render
+              // El autoFocus aqauí está bien para el primer render
               autoFocus
             />
           </form>

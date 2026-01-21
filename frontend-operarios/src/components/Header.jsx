@@ -1,4 +1,5 @@
 export default function Header({ usuario, progreso, total }) {
+  const porcentaje = total > 0 ? (progreso / total) * 100 : 0;
   return (
     <header className="top-bar">
       <div className="user-info">
@@ -12,7 +13,7 @@ export default function Header({ usuario, progreso, total }) {
         <div className="progress-track">
           <div
             className="progress-fill"
-            style={{ width: `${(progreso / total) * 100}%` }}
+            style={{ width: `${porcentaje}%` }}
           ></div>
         </div>
       </div>

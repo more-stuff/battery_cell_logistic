@@ -11,6 +11,32 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sistema Industrial Modular")
 
+
+# --- FUNCIÓN DE INICIALIZACIÓN (SEMILLA) ---
+def initialize_config():
+    from database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        # 1. Chequear ALERTA
+        if not db.query(models.Configuracion).filter_by(clave="alerta_cada").first():
+            print("⚙️ Creando configuración por defecto: alerta_cada = 15")
+            db.add(models.Configuracion(clave="alerta_cada", valor="15"))
+
+        # 2. Chequear LÍMITE
+        if not db.query(models.Configuracion).filter_by(clave="limite_caja").first():
+            print("⚙️ Creando configuración por defecto: limite_caja = 180")
+            db.add(models.Configuracion(clave="limite_caja", valor="180"))
+
+        db.commit()
+    except Exception as e:
+        print(f"Error inicializando config: {e}")
+    finally:
+        db.close()
+
+
+initialize_config()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

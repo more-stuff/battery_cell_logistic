@@ -154,66 +154,85 @@ def aplicar_filtros(
     return query
 
 
+# 1. DEFINIMOS EL DICCIONARIO MAESTRO DE DATOS (Para no repetir código)
+# Esto ayuda a mapear "nombre_columna" -> "valor_en_db"
+def construir_fila(celda, caja, palet):
+    return {
+        "fecha_recibo": palet.fecha_recibo if palet else None,
+        "awb": palet.awb_swb if palet else "",
+        "np": palet.np_packing_list if palet else "",
+        "status": getattr(palet, "generation_status", "") if palet else "",
+        "hu_proveedor": palet.hu_proveedor if palet else "",
+        "caducidad_inbound": celda.fecha_caducidad,
+        "fecha_reempaque": caja.fecha_fin_reempaque if caja else None,
+        "operario": (
+            getattr(caja, "usuario_id", "") if caja else ""
+        ),  # <--- TU DATO NUEVO
+        "dmc": celda.dmc_code,
+        "caducidad_celda": celda.fecha_caducidad,
+        "caducidad_antigua": celda.fecha_caducidad,
+        "fecha_almacenamiento": getattr(caja, "fecha_almacenamiento", None),
+        "hu_silena": getattr(caja, "hu_silena_outbound", "") or "",
+        "ubicacion": getattr(caja, "ubicacion_estanteria", "") or "",
+        "n_salida": getattr(caja, "numero_salida_delivery", "") or "",
+        "hu_final": getattr(caja, "hu_final_embarque", "") or "",
+        "fecha_envio": getattr(caja, "fecha_envio", None),
+    }
+
+
 # --- ENDPOINT 1: VISTA PREVIA (JSON para la Web) ---
 @router.get("/consulta/preview")
 def buscar_preview(
+    # ... (tus filtros anteriores dmc, hu_entrada, etc siguen igual) ...
     dmc: Optional[str] = None,
     hu_entrada: Optional[str] = None,
     hu_salida: Optional[str] = None,
     fecha_inicio: Optional[datetime] = None,
     fecha_fin: Optional[datetime] = None,
     fecha_caducidad: Optional[date] = None,
+    # NUEVO PARÁMETRO: Recibimos las columnas separadas por coma
+    cols: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-
     base_query = db.query(models.Celda)
     query = aplicar_filtros(
         base_query, dmc, hu_entrada, hu_salida, fecha_inicio, fecha_fin, fecha_caducidad
     )
-
-    # Limitamos a 50 para la web
     resultados = query.limit(50).all()
+
+    # Parsear columnas solicitadas (si no envían nada, devolvemos todo por defecto)
+    columnas_pedidas = cols.split(",") if cols else None
 
     data = []
     for celda in resultados:
-        # Lógica de extracción (idéntica a la del CSV)
-        palet = celda.palet_origen
-        caja = celda.caja_destino
+        fila_completa = construir_fila(celda, celda.caja_destino, celda.palet_origen)
 
-        # Mapeo exacto de las 17 columnas
-        row = {
-            "fecha_recibo": palet.fecha_recibo if palet else None,  # 1
-            "awb": palet.awb_swb if palet else "",  # 2
-            "np": palet.np_packing_list if palet else "",  # 3
-            "status": getattr(palet, "generation_status", "") if palet else "",  # 4
-            "hu_proveedor": palet.hu_proveedor if palet else "",  # 5
-            "caducidad_inbound": celda.fecha_caducidad,  # 6
-            "fecha_reempaque": caja.fecha_fin_reempaque if caja else None,  # 7
-            # "registro_silena": "SI" if caja and caja.hu_silena_outbound else "NO",  # 8
-            "dmc": celda.dmc_code,  # 9
-            "caducidad_celda": celda.fecha_caducidad,  # 10
-            "caducidad_antigua": celda.fecha_caducidad,  # 11
-            "fecha_almacenamiento": getattr(caja, "fecha_almacenamiento", None),  # 12
-            "hu_silena": getattr(caja, "hu_silena_outbound", "") or "",  # 13
-            "ubicacion": getattr(caja, "ubicacion_estanteria", "") or "",  # 14
-            "n_salida": getattr(caja, "numero_salida_delivery", "") or "",  # 15
-            "hu_final": getattr(caja, "hu_final_embarque", "") or "",  # 16
-            "fecha_envio": getattr(caja, "fecha_envio", None),  # 17
-        }
-        data.append(row)
+        if columnas_pedidas:
+            # Filtramos: Solo devolvemos las claves que el frontend pidió
+            fila_filtrada = {
+                k: fila_completa[k] for k in columnas_pedidas if k in fila_completa
+            }
+            data.append(fila_filtrada)
+        else:
+            data.append(fila_completa)
 
     return data
 
 
-# --- ENDPOINT 2: DESCARGA CSV (Streaming para Excel) ---
+# --- ENDPOINT 2: CSV DINÁMICO ---
 @router.get("/consulta/exportar")
 def exportar_csv(
+    # ... (tus filtros igual) ...
     dmc: Optional[str] = None,
     hu_entrada: Optional[str] = None,
     hu_salida: Optional[str] = None,
     fecha_inicio: Optional[datetime] = None,
     fecha_fin: Optional[datetime] = None,
     fecha_caducidad: Optional[date] = None,
+    cols: Optional[str] = Query(None),  # <--- NUEVO
+    labels: Optional[str] = Query(
+        None
+    ),  # <--- NUEVO (Para las cabeceras bonitas del Excel)
     db: Session = Depends(get_db),
 ):
     base_query = db.query(models.Celda)
@@ -221,80 +240,36 @@ def exportar_csv(
         base_query, dmc, hu_entrada, hu_salida, fecha_inicio, fecha_fin, fecha_caducidad
     )
 
+    # 1. PREPARAR COLUMNAS
+    if cols and labels:
+        lista_keys = cols.split(",")
+        lista_labels = labels.split(",")
+    else:
+        # Fallback por si alguien llama a la API sin params
+        lista_keys = ["dmc", "hu_proveedor"]
+        lista_labels = ["DMC", "HU Prov"]
+
     def iterar_filas():
         output = io.StringIO()
-        writer = csv.writer(output, delimiter=";")  # ';' para Excel europeo
+        writer = csv.writer(output, delimiter=";")
 
-        # 1. CABECERAS (Ordenadas según tu imagen)
-        headers = [
-            "Fecha Recibo Almacén",
-            "AWB / SWB",
-            "NP Packing List",
-            "Generation Status",
-            "HU Palet Proveedor",
-            "Caducidad Celdas (Inbound)",
-            "Fecha Reempaque",
-            # "Registro en Silena",
-            "DMC",
-            "Caducidad Celda",
-            "Caducidad más antigua",
-            "Fecha Almacenamiento",
-            "HU Silena (Outbound)",
-            "Ubicación Estantería",
-            "Nº Salida / Delivery",
-            "Handling Unit",
-            "Fecha de Envío",
-        ]
-        writer.writerow(headers)
+        # 1. ESCRIBIR CABECERAS DINÁMICAS
+        writer.writerow(lista_labels)
+
         yield output.getvalue()
         output.seek(0)
         output.truncate(0)
 
         for celda in query.yield_per(1000):
-            palet = celda.palet_origen
-            caja = celda.caja_destino
-
-            # Extracción segura de datos
-            f_recibo = palet.fecha_recibo if palet else ""
-            awb = palet.awb_swb if palet else ""
-            np = palet.np_packing_list if palet else ""
-            status = getattr(palet, "generation_status", "") if palet else ""
-            hu_prov = palet.hu_proveedor if palet else ""
-
-            caducidad = celda.fecha_caducidad if celda.fecha_caducidad else ""
-            dmc_code = celda.dmc_code
-
-            f_reempaque = caja.fecha_fin_reempaque if caja else ""
-            # reg_silena = "SI" if caja and caja.hu_silena_outbound else "NO"
-
-            f_almacen = getattr(caja, "fecha_almacenamiento", "") or ""
-            hu_silena = getattr(caja, "hu_silena_outbound", "") or ""
-            ubicacion = getattr(caja, "ubicacion_estanteria", "") or ""
-            n_salida = getattr(caja, "numero_salida_delivery", "") or ""
-            hu_final = getattr(caja, "hu_final_embarque", "") or ""
-            f_envio = getattr(caja, "fecha_envio", "") or ""
-
-            writer.writerow(
-                [
-                    f_recibo,
-                    awb,
-                    np,
-                    status,
-                    hu_prov,
-                    caducidad,
-                    f_reempaque,
-                    # reg_silena,
-                    dmc_code,
-                    caducidad,
-                    caducidad,
-                    f_almacen,
-                    hu_silena,
-                    ubicacion,
-                    n_salida,
-                    hu_final,
-                    f_envio,
-                ]
+            # Construimos el diccionario con TOOOODOS los datos
+            fila_completa = construir_fila(
+                celda, celda.caja_destino, celda.palet_origen
             )
+
+            # Creamos la lista ordenada según lo que pidió el usuario
+            valores_ordenados = [fila_completa.get(key, "") for key in lista_keys]
+
+            writer.writerow(valores_ordenados)
 
             yield output.getvalue()
             output.seek(0)
@@ -302,6 +277,40 @@ def exportar_csv(
 
     response = StreamingResponse(iterar_filas(), media_type="text/csv")
     response.headers["Content-Disposition"] = (
-        f"attachment; filename=Trazabilidad_{date.today()}.csv"
+        f"attachment; filename=Reporte_{date.today()}.csv"
     )
     return response
+
+
+# --- ENDPOINT 1: OBTENER CONFIGURACIÓN (Para Frontend) ---
+@router.get("/config", response_model=schemas.ConfigResponse)
+def obtener_configuracion(db: Session = Depends(get_db)):
+    # Buscamos los valores en la DB
+    conf_alerta = db.query(models.Configuracion).filter_by(clave="alerta_cada").first()
+    conf_limite = db.query(models.Configuracion).filter_by(clave="limite_caja").first()
+
+    # Si no existen, devolvemos valores por defecto (Safety check)
+    return {
+        "alerta_cada": int(conf_alerta.valor) if conf_alerta else 15,
+        "limite_caja": int(conf_limite.valor) if conf_limite else 180,
+    }
+
+
+# --- ENDPOINT 2: MODIFICAR CONFIGURACIÓN (Para Admin) ---
+@router.put("/config")
+def actualizar_configuracion(datos: schemas.ConfigInput, db: Session = Depends(get_db)):
+    # Buscamos la clave (ej: "alerta_cada")
+    config = db.query(models.Configuracion).filter_by(clave=datos.clave).first()
+
+    if not config:
+        # Si no existe, la creamos
+        config = models.Configuracion(clave=datos.clave, valor=datos.valor)
+        db.add(config)
+        mensaje = "✅ Configuración creada"
+    else:
+        # Si existe, actualizamos
+        config.valor = datos.valor
+        mensaje = "🔄 Configuración actualizada"
+
+    db.commit()
+    return {"mensaje": mensaje, "clave": datos.clave, "nuevo_valor": datos.valor}

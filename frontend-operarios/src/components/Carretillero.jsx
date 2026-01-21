@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import Swal from "sweetalert2"; // <--- IMPORTANTE
 import { guardarUbicacion } from "../services/api";
 
 export const Carretillero = () => {
@@ -11,8 +12,15 @@ export const Carretillero = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // 1. VALIDACIÓN (WARNING)
     if (!idCaja.trim() || !ubicacion.trim()) {
-      alert("⚠️ FALTAN DATOS");
+      Swal.fire({
+        icon: "warning",
+        title: "Faltan datos",
+        text: "⚠️ Debes escanear tanto la CAJA como la UBICACIÓN.",
+        confirmButtonColor: "#e67e22",
+      });
       return;
     }
 
@@ -25,17 +33,29 @@ export const Carretillero = () => {
 
       await guardarUbicacion(payload);
 
-      // Feedback visual (opcional: podrías usar un toast, pero el alert es efectivo aquí)
-      alert(
-        `✅ GUARDADO CORRECTAMENTE\nCaja: ${idCaja} -> Ubicación: ${ubicacion}`,
-      );
+      // 2. ÉXITO (SUCCESS)
+      // Usamos un timer para que se cierre sola y pueda seguir trabajando rápido
+      await Swal.fire({
+        icon: "success",
+        title: "¡Ubicada!",
+        html: `Caja: <b>${idCaja}</b><br>Ubicación: <b>${ubicacion}</b>`,
+        timer: 1500,
+        showConfirmButton: false,
+      });
 
+      // Limpieza y foco
       setIdCaja("");
       setUbicacion("");
       if (idRef.current) idRef.current.focus();
     } catch (error) {
       console.error(error);
-      alert("❌ ERROR. Revisa que el ID de la caja exista en el sistema.");
+
+      // 3. ERROR (ERROR)
+      Swal.fire({
+        icon: "error",
+        title: "Error al guardar",
+        text: "❌ Revisa que el ID de la caja exista en el sistema.",
+      });
     } finally {
       setEnviando(false);
     }
@@ -115,7 +135,7 @@ const estilos = {
     justifyContent: "center",
     alignItems: "center",
     fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    padding: "20px", // Evita que la tarjeta toque los bordes en móviles
+    padding: "20px",
     boxSizing: "border-box",
   },
   card: {
@@ -123,7 +143,7 @@ const estilos = {
     padding: "40px",
     borderRadius: "15px",
     width: "100%",
-    maxWidth: "500px", // Ancho máximo controlado
+    maxWidth: "500px",
     boxShadow: "0 10px 25px rgba(0,0,0,0.3)",
     display: "flex",
     flexDirection: "column",
@@ -145,7 +165,7 @@ const estilos = {
   form: {
     display: "flex",
     flexDirection: "column",
-    gap: "30px", // Espacio vertical entre los inputs
+    gap: "30px",
   },
   grupoInput: {
     display: "flex",
@@ -161,10 +181,10 @@ const estilos = {
     marginLeft: "5px",
   },
   input: {
-    width: "100%", // Ocupa todo el ancho disponible
-    boxSizing: "border-box", // <--- ¡CLAVE! Esto arregla el desbordamiento
+    width: "100%",
+    boxSizing: "border-box",
     padding: "15px 20px",
-    fontSize: "1.8rem", // Letra grande y legible
+    fontSize: "1.8rem",
     textAlign: "center",
     border: "2px solid #bdc3c7",
     borderRadius: "10px",

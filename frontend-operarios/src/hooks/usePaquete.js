@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { enviarPaquete } from "../services/api";
+import { enviarPaquete, obtenerConfiguracion } from "../services/api";
 import Swal from "sweetalert2";
 
 const CONFIGURACION = {
@@ -8,12 +8,39 @@ const CONFIGURACION = {
 };
 
 export const usePaquete = (usuario) => {
+  const [config, setConfig] = useState({
+    alerta_cada: 15, // Valor por defecto si falla la red
+    limite_caja: 180, // Valor por defecto
+  });
+
   const [huActual, setHuActual] = useState("");
   const [celdaInput, setCeldaInput] = useState("");
   const [celdas, setCeldas] = useState([]);
   const [fechaInicio, setFechaInicio] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [idGuardado, setIdGuardado] = useState(null); //  Para guardar el ID que nos devuelve el servidor
+
+  useEffect(() => {
+    const cargarDatosBackend = async () => {
+      console.log("🔄 Cargando configuración desde Backend...");
+      try {
+        const datos = await obtenerConfiguracion();
+        // Si todo va bien, actualizamos el estado con lo que diga la base de datos
+        setConfig({
+          alerta_cada: Number(datos.alerta_cada),
+          limite_caja: Number(datos.limite_caja),
+        });
+        console.log("✅ Configuración cargada:", datos);
+      } catch (error) {
+        console.error(
+          "⚠️ Error cargando config, usando valores por defecto: ",
+          error,
+        );
+      }
+    };
+
+    cargarDatosBackend();
+  }, []);
 
   // gestion del localstorage
   const userKey = usuario ? `_${usuario}` : "";
@@ -84,7 +111,7 @@ export const usePaquete = (usuario) => {
         error: "⚠️ Código muy corto (Faltan datos).",
         type: "short_error",
       };
-    if (celdas.length >= CONFIGURACION.limite_paquete)
+    if (celdas.length >= config.limite_caja)
       return { error: "📦 Paquete lleno.", type: "duplicate_error" };
 
     // Evitar duplicados
@@ -133,7 +160,7 @@ export const usePaquete = (usuario) => {
       codigo_celda: celdaInput,
       hu_asociado: huActual,
       fecha_caducidad: fechaFormateada,
-      es_revision: (celdas.length + 1) % CONFIGURACION.alerta_cada === 0,
+      es_revision: (celdas.length + 1) % config.alerta_cada === 0,
       timestamp: new Date().toISOString(),
     };
 
@@ -144,8 +171,8 @@ export const usePaquete = (usuario) => {
     // Alerta preventiva
     const siguientePieza = nuevasCeldas.length + 1;
     const requiereRevision =
-      siguientePieza % CONFIGURACION.alerta_cada === 0 &&
-      siguientePieza <= CONFIGURACION.limite_paquete;
+      siguientePieza % config.alerta_cada === 0 &&
+      siguientePieza <= config.limite_caja;
 
     return {
       success: true,
@@ -169,6 +196,7 @@ export const usePaquete = (usuario) => {
 
   const enviarDatos = async () => {
     if (celdas.length < CONFIGURACION.limite_paquete) {
+      //if (celdas.length < 1) {
       // por seguridad pero no le va a dejar igualmente
       const faltantes = CONFIGURACION.limite_paquete - celdas.length;
 
@@ -187,7 +215,7 @@ export const usePaquete = (usuario) => {
     try {
       // Mapeo para el Backend
       const payload = {
-        usuario_id: parseInt(usuario) || 1,
+        usuario_id: usuario,
         fecha_inicio: fechaInicio || new Date().toISOString(),
         fecha_fin: new Date().toISOString(),
         celdas: celdas.map((c) => ({
@@ -236,6 +264,6 @@ export const usePaquete = (usuario) => {
     agregarCelda,
     borrarCelda,
     enviarDatos,
-    limite: CONFIGURACION.limite_paquete,
+    limite: config.limite_caja,
   };
 };

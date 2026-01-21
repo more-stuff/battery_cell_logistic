@@ -13,7 +13,7 @@ class CeldaInput(BaseModel):
 
 # El paquete completo de 180 celdas
 class ReempaqueInput(BaseModel):
-    usuario_id: int
+    usuario_id: str
     celdas: List[CeldaInput]  # Lista de 180 celdas
     fecha_inicio: datetime
     fecha_fin: datetime
@@ -56,3 +56,14 @@ class OutboundData(BaseModel):
     numero_salida: Optional[str] = None  # Nº Salida / Delivery
     handling_unit: Optional[str] = None  # HU Final Embarque
     fecha_envio: Optional[datetime | str] = None
+
+
+# --- PARTE 4: CONFIGURACIÓN ---
+class ConfigInput(BaseModel):
+    clave: str
+    valor: str
+
+
+class ConfigResponse(BaseModel):
+    alerta_cada: int
+    limite_caja: int

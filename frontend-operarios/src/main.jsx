@@ -10,12 +10,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
-        {/* URL: http://.../  (PC Mesa) */}
         <Route path="/" element={<Operario />} />
-
-        {/* URL: http://.../carretilla  (Tablet Carretilla) */}
         <Route path="/carretilla" element={<Carretillero />} />
-
         <Route path="/administrative" element={<AdminDashboard />} />
       </Routes>
     </BrowserRouter>
