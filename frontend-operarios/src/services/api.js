@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const API_URL = "http://127.0.0.1:8000";
+//const API_URL = "http://127.0.0.1:8000";
+const API_URL = "/api";
 
 export const enviarPaquete = async (payload) => {
   // Aquí hacemos la llamada limpia

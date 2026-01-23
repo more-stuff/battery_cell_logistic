@@ -2,11 +2,6 @@ import { useState, useEffect } from "react";
 import { enviarPaquete, obtenerConfiguracion } from "../services/api";
 import Swal from "sweetalert2";
 
-const CONFIGURACION = {
-  limite_paquete: 180,
-  alerta_cada: 15,
-};
-
 export const usePaquete = (usuario) => {
   const [config, setConfig] = useState({
     alerta_cada: 15, // Valor por defecto si falla la red
@@ -195,15 +190,15 @@ export const usePaquete = (usuario) => {
   };
 
   const enviarDatos = async () => {
-    if (celdas.length < CONFIGURACION.limite_paquete) {
+    if (celdas.length < config.limite_paquete) {
       //if (celdas.length < 1) {
       // por seguridad pero no le va a dejar igualmente
-      const faltantes = CONFIGURACION.limite_paquete - celdas.length;
+      const faltantes = config.limite_paquete - celdas.length;
 
       Swal.fire({
         icon: "error",
         title: "⛔ CAJA INCOMPLETA",
-        text: `No se puede cerrar la caja. Faltan ${faltantes} piezas para llegar a ${CONFIGURACION.limite_paquete}.`,
+        text: `No se puede cerrar la caja. Faltan ${faltantes} piezas para llegar a ${config.limite_paquete}.`,
         confirmButtonColor: "#d33",
         confirmButtonText: "Entendido, seguir escaneando",
       });

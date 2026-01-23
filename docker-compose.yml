@@ -1,0 +1,35 @@
+services:
+  # Base de datos
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: trazabilidad
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Tu Backend (FastAPI)
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      # Asegúrate de leer esta variable en tu database.py
+      - DATABASE_URL=postgresql://postgres:admin@db:5432/trazabilidad
+    ports:
+      - "8000:8000"
+
+  # Tu Frontend (React + Vite)
+  frontend:
+    build: ./frontend-operarios # <-- OJO: El nombre exacto de tu carpeta
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80" # Tu app estará en el puerto 80 del servidor
+
+volumes:
+  postgres_data:
