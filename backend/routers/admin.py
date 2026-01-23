@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, text
 from typing import Optional
 from pydantic import BaseModel
 from datetime import date, datetime, time, timedelta
 from urllib.parse import unquote
+
 import csv
 import io
 
@@ -98,9 +99,6 @@ def registrar_salida(datos: schemas.OutboundData, db: Session = Depends(get_db))
     return {"mensaje": "✅ DATOS DE SALIDA GUARDADOS CORRECTAMENTE"}
 
 
-from sqlalchemy import text
-
-
 # --- FUNCIÓN AUXILIAR PARA FILTROS ---
 def aplicar_filtros(
     query, dmc, hu_entrada, hu_salida, fecha_inicio, fecha_fin, fecha_caducidad
@@ -119,11 +117,8 @@ def aplicar_filtros(
     if dmc:
         dmc_limpio = unquote(dmc).strip()
 
-        # Convertimos AMBOS lados a Hexadecimal (md5) para comparar.
-        # Si esto falla, es que los datos SON DIFERENTES y punto.
-        query = query.filter(text("md5(dmc_code) = md5(:valor)")).params(
-            valor=dmc_limpio
-        )
+        # busqueda con el binary tree que es mas rapido
+        query = query.filter(models.Celda.dmc_code == dmc_limpio)
 
     if hu_entrada:
         query = query.filter(models.PaletEntrada.hu_proveedor.contains(hu_entrada))

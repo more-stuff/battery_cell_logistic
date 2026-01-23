@@ -15,11 +15,12 @@ export default function PanelEscaneo({
   const inputRef = useRef(null);
   const estaLleno = numCeldas >= limite;
 
-  const reproducirSonido = (archivo) => {
-    const audio = new Audio(`/sounds/${archivo}.mp3`);
-    audio
-      .play()
-      .catch((err) => console.error("Error reproduciendo audio:", err));
+  const audios = {
+    ok: new Audio("/sounds/ok.mp3"),
+    short_error: new Audio("/sounds/short_error.mp3"),
+    duplicate_error: new Audio("/sounds/duplicate_error.mp3"),
+    quality_error: new Audio("/sounds/quality_error.mp3"),
+    date_error: new Audio("/sounds/date_error.mp3"),
   };
 
   // Esto hace que solo se ejecute UNA vez al cargar la página, no cada vez que escribes.
@@ -38,7 +39,7 @@ export default function PanelEscaneo({
 
     // CASO 1: ERROR (Duplicado, fecha mal, etc.)
     if (res?.error) {
-      reproducirSonido(sonido);
+      audios[sonido].play();
       Swal.fire({
         icon: "error",
         title: "¡Error!",
@@ -51,7 +52,7 @@ export default function PanelEscaneo({
 
     // CASO 2: CONTROL DE CALIDAD (NUEVO)
     if (res?.revision) {
-      reproducirSonido("quality_check");
+      sonidos["quality_check"].play();
 
       Swal.fire({
         title: "🛑 CONTROL DE CALIDAD",
@@ -88,7 +89,7 @@ export default function PanelEscaneo({
       });
     } else {
       // CASO 3: ÉXITO NORMAL (Sin revisión)
-      reproducirSonido("ok");
+      audios["ok"].play();
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   };

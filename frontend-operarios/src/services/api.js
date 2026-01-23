@@ -3,6 +3,11 @@ import axios from "axios";
 //const API_URL = "http://127.0.0.1:8000";
 const API_URL = "/api";
 
+axios.create({
+  baseURL: API_URL,
+  timeout: 10000, // 10 segundos máximo
+});
+
 export const enviarPaquete = async (payload) => {
   // Aquí hacemos la llamada limpia
   const response = await axios.post(`${API_URL}/reempaque/finalizar`, payload);

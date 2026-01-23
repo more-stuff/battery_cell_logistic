@@ -1,0 +1,54 @@
+version: "3.8"
+
+services:
+  # --- AÑADE ESTO: LA BASE DE DATOS TAMBIÉN HACE FALTA EN DEV ---
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=admin
+      - POSTGRES_DB=trazabilidad
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5433:5432" # <--- OJO: Uso el 5433 fuera para no chocar con la de producción
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data # <--- Volumen separado para no mezclar datos
+
+  # --- TU BACKEND DEV ---
+  backend:
+    build:
+      context: ./backend
+    # Aseguramos que espere a que la db exista
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8888:8000"
+    environment:
+      # Aquí "db" funcionará porque ahora el servicio existe arriba
+      - DATABASE_URL=postgresql://postgres:admin@db:5432/trazabilidad
+
+  # --- TU FRONTEND DEV ---
+  frontend:
+    build:
+      context: ./frontend-operarios
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend-operarios:/app
+      - /app/node_modules
+    ports:
+      - "8080:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8888
+
+# Definimos el volumen nuevo para dev
+volumes:
+  postgres_data_dev:

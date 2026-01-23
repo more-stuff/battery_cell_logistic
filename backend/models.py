@@ -83,7 +83,7 @@ class Celda(Base):
     palet_origen = relationship("PaletEntrada", back_populates="celdas_hijas")
 
     # DATOS PROPIOS
-    dmc_code = Column(String(200))
+    dmc_code = Column(String(200), unique=True, index=True)
     fecha_caducidad = Column(Date)
 
 
