@@ -1,5 +1,16 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import Swal from "sweetalert2";
+
+const audios = {
+  ok: new Audio("/sounds/ok.mp3"),
+  short_error: new Audio("/sounds/short_error.mp3"),
+  duplicate_error: new Audio("/sounds/duplicate_error.mp3"),
+  quality_check: new Audio("/sounds/quality_check.mp3"),
+  date_error: new Audio("/sounds/date_error.mp3"),
+};
+
+// Opcional: Forzar precarga para que estén listos ya
+Object.values(audios).forEach((audio) => (audio.preload = "auto"));
 
 export default function PanelEscaneo({
   hu,
@@ -14,14 +25,6 @@ export default function PanelEscaneo({
 }) {
   const inputRef = useRef(null);
   const estaLleno = numCeldas >= limite;
-
-  const audios = {
-    ok: new Audio("/sounds/ok.mp3"),
-    short_error: new Audio("/sounds/short_error.mp3"),
-    duplicate_error: new Audio("/sounds/duplicate_error.mp3"),
-    quality_error: new Audio("/sounds/quality_error.mp3"),
-    date_error: new Audio("/sounds/date_error.mp3"),
-  };
 
   // Esto hace que solo se ejecute UNA vez al cargar la página, no cada vez que escribes.
   useEffect(() => {
@@ -51,8 +54,9 @@ export default function PanelEscaneo({
     }
 
     // CASO 2: CONTROL DE CALIDAD (NUEVO)
+    console.log(res.revision);
     if (res?.revision) {
-      sonidos["quality_check"].play();
+      audios["quality_check"].play();
 
       Swal.fire({
         title: "🛑 CONTROL DE CALIDAD",

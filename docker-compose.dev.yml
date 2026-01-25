@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # --- AÑADE ESTO: LA BASE DE DATOS TAMBIÉN HACE FALTA EN DEV ---
   db:

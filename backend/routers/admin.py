@@ -164,6 +164,7 @@ def construir_fila(celda, caja, palet):
             getattr(caja, "usuario_id", "") if caja else ""
         ),  # <--- TU DATO NUEVO
         "dmc": celda.dmc_code,
+        "id_temporal": caja.id_temporal,
         "caducidad_celda": celda.fecha_caducidad,
         "caducidad_antigua": celda.fecha_caducidad,
         "fecha_almacenamiento": getattr(caja, "fecha_almacenamiento", None),

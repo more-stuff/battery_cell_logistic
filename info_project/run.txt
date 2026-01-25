@@ -4,3 +4,11 @@ python -m uvicorn main:app --reload --host 0.0.0.0
 
 postgresSQL
 docker
+
+
+docker
+--> dev:
+docker-compose -f docker-compose.dev.yml up --build
+
+--> prod:
+docker-compose -f docker-compose.yml up -d --build

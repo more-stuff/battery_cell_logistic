@@ -3,9 +3,9 @@ import axios from "axios";
 //const API_URL = "http://127.0.0.1:8000";
 const API_URL = "/api";
 
-axios.create({
+const api = axios.create({
   baseURL: API_URL,
-  timeout: 10000, // 10 segundos máximo
+  timeout: 5000, // 10 segundos máximo
 });
 
 export const enviarPaquete = async (payload) => {
@@ -59,7 +59,7 @@ export const buscarPreview = async (filtros) => {
   const params = limpiarFiltros(filtros);
 
   // 2. Enviamos solo los datos útiles
-  const response = await axios.get(`${API_URL}/admin/consulta/preview`, {
+  const response = await api.get(`/admin/consulta/preview`, {
     params,
   });
   return response.data;
@@ -69,7 +69,7 @@ export const descargarCSV = async (filtros) => {
   // 1. Limpiamos antes de enviar
   const params = limpiarFiltros(filtros);
 
-  const response = await axios.get(`${API_URL}/admin/consulta/exportar`, {
+  const response = await api.get(`/admin/consulta/exportar`, {
     params,
     responseType: "blob",
   });
@@ -87,7 +87,7 @@ export const descargarCSV = async (filtros) => {
 export const obtenerConfiguracion = async () => {
   try {
     // CAMBIO: La ruta ahora es /admin/config
-    const response = await axios.get(`${API_URL}/admin/config`);
+    const response = await api.get(`/admin/config`);
     return response.data;
   } catch (error) {
     console.error("Usando config por defecto", error);
@@ -98,7 +98,7 @@ export const obtenerConfiguracion = async () => {
 export const guardarConfiguracion = async (clave, valor) => {
   try {
     // Ajusta la URL si tu endpoint está en /admin/config
-    const response = await axios.put(`${API_URL}/admin/config`, {
+    const response = await api.put(`/admin/config`, {
       clave: clave,
       valor: String(valor), // Lo enviamos siempre como string
     });

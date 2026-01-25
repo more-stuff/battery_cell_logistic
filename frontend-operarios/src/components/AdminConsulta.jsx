@@ -20,6 +20,7 @@ const COLUMNAS_DISPONIBLES = [
   { id: "operario", label: "👷 Operario (Interno)" },
   { id: "hu_silena", label: "HU Silena" },
   { id: "dmc", label: "DMC (Celda)" },
+  { id: "id_temporal", label: "ID Temporal" },
   { id: "caducidad_celda", label: "Cad. Celda" },
   { id: "caducidad_antigua", label: "Cad. Antigua" },
   { id: "fecha_almacenamiento", label: "F. Almacén" },
