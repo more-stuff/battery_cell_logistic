@@ -204,6 +204,10 @@ def aplicar_filtros(
         )
 
     # Filtro de fecha de escaneo (usamos la fecha de la caja de reempaque final)
+    if not fecha_inicio:
+        # Por defecto solo últimos 30 días para evitar bloqueos masivos
+        fecha_inicio = datetime.now() - timedelta(days=30)
+
     if fecha_inicio and fecha_fin:
         dt_fin_base = datetime.combine(fecha_fin, time.min)
 
@@ -353,7 +357,6 @@ def exportar_csv(
 @router.get("/config", response_model=schemas.ConfigResponse)
 def obtener_configuracion(
     db: Session = Depends(get_db),
-    current_user: models.UsuarioAdmin = Depends(auth.require_super_admin),
 ):
     # Buscamos los valores en la DB
     conf_alerta = db.query(models.Configuracion).filter_by(clave="alerta_cada").first()

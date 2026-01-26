@@ -7,6 +7,7 @@ const audios = {
   duplicate_error: new Audio("/sounds/duplicate_error.mp3"),
   quality_check: new Audio("/sounds/quality_check.mp3"),
   date_error: new Audio("/sounds/date_error.mp3"),
+  level_complete: new Audio("/sounds/ok.mp3"),
 };
 
 // Opcional: Forzar precarga para que estén listos ya
@@ -26,11 +27,10 @@ export default function PanelEscaneo({
   const inputRef = useRef(null);
   const estaLleno = numCeldas >= limite;
 
-  // Esto hace que solo se ejecute UNA vez al cargar la página, no cada vez que escribes.
+  // Esto hace que solo se ejecute UNA vez al cargar la página
   useEffect(() => {
     setTimeout(() => {
       // Solo enfocamos la celda si ya hay un HU (recuperado de memoria),
-      // si no, el usuario querrá escribir el HU primero.
       if (hu) inputRef.current?.focus();
     }, 100);
   }, []);
@@ -47,14 +47,13 @@ export default function PanelEscaneo({
         icon: "error",
         title: "¡Error!",
         text: res.error,
-        timer: 3000,
+        timer: 2000,
         showConfirmButton: false,
       });
       return;
     }
 
-    // CASO 2: CONTROL DE CALIDAD (NUEVO)
-    console.log(res.revision);
+    // CASO 2: CONTROL DE CALIDAD
     if (res?.revision) {
       audios["quality_check"].play();
 
@@ -77,22 +76,59 @@ export default function PanelEscaneo({
         `,
         icon: "warning",
         confirmButtonText: "✅ LEÍDO Y VERIFICADO",
-        confirmButtonColor: "#2c3e50", // Tu color primario
+        confirmButtonColor: "#2c3e50",
         width: 600,
         padding: "2em",
-        allowOutsideClick: false, // IMPORTANTE: Obliga a pulsar el botón
-        allowEscapeKey: false, // IMPORTANTE: No se cierra con ESC
+        allowOutsideClick: false,
+        allowEscapeKey: false,
         backdrop: `
           rgba(0,0,0,0.85)
           left top
           no-repeat
         `,
       }).then(() => {
-        // Al dar clic en OK, devolvemos el foco al input para seguir trabajando
         setTimeout(() => inputRef.current?.focus(), 100);
       });
-    } else {
-      // CASO 3: ÉXITO NORMAL (Sin revisión)
+      return; // Importante: salir para no ejecutar lógica de nivel o éxito normal
+    }
+
+    // 👇 3. ALERTA DE NIVEL COMPLETADO
+    if (res?.nivelCompletado) {
+      audios["level_complete"].play();
+
+      Swal.fire({
+        title: `🏁 NIVEL ${res.numeroNivel} COMPLETADO`,
+        html: `
+          <div style="font-size: 1.1rem; color: #34495e;">
+            <p>Has completado <b>${res.numeroPieza} piezas</b>.</p>
+            <div style="
+              background: #ebf5fb;
+              border: 2px dashed #3498db;
+              padding: 15px;
+              border-radius: 8px;
+              margin: 15px 0;
+            ">
+              <h3 style="margin:0; color: #2980b9;">⚠️ ACCIÓN REQUERIDA</h3>
+              <p style="margin: 5px 0 0 0; font-weight: bold;">Colocar cartón separador</p>
+            </div>
+          </div>
+        `,
+        icon: "info",
+        confirmButtonText: "✅ Iniciar nuevo nivel",
+        confirmButtonColor: "#2980b9",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        allowEnterKey: true,
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setTimeout(() => inputRef.current?.focus(), 200);
+        }
+      });
+      return; // 🛑 IMPORTANTE: Cortamos aquí
+    }
+
+    // CASO 4: ÉXITO NORMAL (Sin revisión ni fin de nivel)
+    else {
       audios["ok"].play();
       setTimeout(() => inputRef.current?.focus(), 0);
     }
@@ -111,7 +147,6 @@ export default function PanelEscaneo({
             value={hu}
             onChange={(e) => setHu(e.target.value)}
             placeholder="Escanear Caja..."
-            // Quitamos autofocus de aquí para evitar peleas de foco
           />
         </div>
 
@@ -124,7 +159,6 @@ export default function PanelEscaneo({
               value={celda}
               onChange={(e) => setCelda(e.target.value)}
               placeholder="Escanear Pieza..."
-              // El autoFocus aqauí está bien para el primer render
               autoFocus
             />
           </form>

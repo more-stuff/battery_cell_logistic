@@ -1,20 +1,40 @@
 import React from "react";
 import Swal from "sweetalert2";
-export default function PanelHistorico({ celdas, onBorrar }) {
-  const handleBorrar = (index) => {
+export default function PanelHistorico({
+  celdas,
+  onBorrar,
+  onBorrarDesde,
+  offsetIndex,
+}) {
+  const handleBorrarClick = (indexVisual) => {
+    // Calculem l'índex real dins de l'array global
+    const indexReal = offsetIndex + indexVisual;
+
     Swal.fire({
-      title: "¿Borrar lectura?",
-      text: "Esta acción no se puede deshacer",
-      icon: "warning",
+      title: "¿Què vols fer?",
+      text: `Estàs a la peça #${indexReal + 1}`,
+      icon: "question",
       showCancelButton: true,
-      confirmButtonColor: "#d33",
+      showDenyButton: true,
+      confirmButtonColor: "#d33", // Vermell per acció forta
+      denyButtonColor: "#f39c12", // Taronja per acció suau
       cancelButtonColor: "#3085d6",
-      confirmButtonText: "Sí, borrar",
-      cancelButtonText: "Cancelar",
+      confirmButtonText: "🧨 Esborrar des d'aquí fins al final",
+      denyButtonText: "🗑️ Esborrar només aquesta",
+      cancelButtonText: "Cancel·lar",
     }).then((result) => {
       if (result.isConfirmed) {
-        onBorrar(index); // <--- Llamamos al hook solo si confirma
-        Swal.fire("¡Borrado!", "La lectura ha sido eliminada.", "success");
+        // Opció 1: Esborrar en massa
+        onBorrarDesde(indexReal);
+        Swal.fire(
+          "Netejat!",
+          "S'han esborrat les peces posteriors.",
+          "success",
+        );
+      } else if (result.isDenied) {
+        // Opció 2: Esborrar només una
+        onBorrar(indexReal);
+        Swal.fire("Esborrat!", "La lectura ha estat eliminada.", "success");
       }
     });
   };
@@ -22,7 +42,7 @@ export default function PanelHistorico({ celdas, onBorrar }) {
   return (
     <section className="panel history-panel">
       <div className="panel-header">
-        <h3>📋 Histórico del Paquete</h3>
+        <h3>📋 Històric (Nivell Actual)</h3>
         <span className="badge">{celdas.length} Items</span>
       </div>
 
@@ -31,56 +51,67 @@ export default function PanelHistorico({ celdas, onBorrar }) {
           <thead>
             <tr>
               <th>#</th>
-              <th>Cód. Pieza</th>
-              <th>Cód. Caja (HU)</th>
-              <th style={{ textAlign: "center" }}>Estado</th>
-              <th style={{ textAlign: "center" }}>Acción</th>
+              <th>Codi Peça</th>
+              <th>Estat</th>
+              <th style={{ textAlign: "center" }}>Acció</th>
             </tr>
           </thead>
           <tbody>
             {celdas.length === 0 ? (
               <tr>
                 <td
-                  colSpan="5"
+                  colSpan="4"
                   className="empty-state"
                   style={{ textAlign: "center", padding: "20px" }}
                 >
-                  Esperando escaneos...
+                  Esperant escanejos al nivell actual...
                 </td>
               </tr>
             ) : (
-              // Usamos slice() para crear una copia antes de reverse() y no mutar el original
               [...celdas]
-                .map((celda, index) => {
-                  // Como invertimos el array visualmente, el índice real es distinto
-                  // Pero para mostrar el número de pieza, usamos el indice original + 1
-                  // Nota: Si quieres que el #1 sea siempre el primero escaneado, usa el index original.
+                .map((celda, indexVisual) => {
+                  const esUltimo = indexVisual === celdas.length - 1;
+                  // Número real per mostrar a l'usuari
+                  const numeroReal = offsetIndex + indexVisual + 1;
 
                   return (
                     <tr
                       key={celda.id}
-                      className={
-                        index === celdas.length - 1 ? "row-highlight" : ""
-                      }
+                      className={esUltimo ? "row-highlight" : ""}
                     >
-                      {/* Ajuste visual: mostramos el número real de la pieza */}
-                      <td>{celdas.indexOf(celda) + 1}</td>
+                      {/* Mostrem el número real (Ex: 46, 47...) */}
+                      <td>{numeroReal}</td>
 
-                      <td className="font-mono">{celda.codigo_celda}</td>
-                      <td className="text-muted">{celda.hu_asociado}</td>
+                      <td
+                        className="font-mono"
+                        style={{
+                          fontWeight: celda.es_revision ? "bold" : "normal",
+                        }}
+                      >
+                        {celda.codigo_celda}
+                      </td>
 
                       <td style={{ textAlign: "center" }}>
                         {celda.es_revision ? (
-                          <span className="tag tag-review">REVISIÓN</span>
+                          <span
+                            className="tag tag-review"
+                            style={{
+                              backgroundColor: "#ef4444",
+                              color: "white",
+                            }}
+                          >
+                            ⚠️ REVISIÓ
+                          </span>
                         ) : (
                           <span className="tag tag-ok">OK</span>
                         )}
                       </td>
+
                       <td style={{ textAlign: "center" }}>
                         <button
                           className="btn-trash"
-                          onClick={() => handleBorrar(celdas.indexOf(celda))} // Borramos usando el índice real
-                          title="Eliminar registro"
+                          onClick={() => handleBorrarClick(indexVisual)}
+                          title="Opcions d'esborrat"
                         >
                           🗑️
                         </button>
@@ -88,7 +119,7 @@ export default function PanelHistorico({ celdas, onBorrar }) {
                     </tr>
                   );
                 })
-                .reverse() // Invertimos el orden visual (el último arriba)
+                .reverse()
             )}
           </tbody>
         </table>

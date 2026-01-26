@@ -99,27 +99,64 @@ export const AdminConfig = () => {
 
         {/* CONFIG 2: FRECUENCIA DE REVISIÓN */}
         <div style={estilos.item}>
-          <label style={estilos.label}>
-            ⚠️ Alerta de Revisión (Cada X piezas)
-          </label>
-          <div style={estilos.inputGroup}>
-            <input
-              type="number"
-              name="alerta_cada"
-              value={config.alerta_cada}
-              onChange={handleChange}
+          <label style={estilos.label}>⚠️ Estrategia de Calidad</label>
+
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+          >
+            {/* SELECTOR DE MODO */}
+            <select
+              value={Number(config.alerta_cada) === -1 ? "-1" : "intervalo"}
+              onChange={(e) => {
+                const val = e.target.value;
+                // Si eligen "Solo Extremos", guardamos -1. Si eligen "Intervalo", ponemos 15 por defecto.
+                setConfig({ ...config, alerta_cada: val === "-1" ? -1 : 15 });
+              }}
               style={estilos.input}
-            />
+            >
+              <option value="intervalo">Por Intervalo (Cada X piezas)</option>
+              <option value="-1">Solo Primera y Última pieza</option>
+            </select>
+
+            {/* INPUT DE NÚMERO (Solo visible si es modo Intervalo) */}
+            {Number(config.alerta_cada) !== -1 && (
+              <div style={estilos.inputGroup}>
+                <input
+                  type="number"
+                  name="alerta_cada"
+                  value={config.alerta_cada}
+                  onChange={handleChange}
+                  placeholder="Ej: 15"
+                  style={estilos.input}
+                />
+                <span
+                  style={{
+                    alignSelf: "center",
+                    fontSize: "0.8rem",
+                    color: "#666",
+                  }}
+                >
+                  piezas
+                </span>
+              </div>
+            )}
+
             <button
               onClick={() => handleGuardar("alerta_cada")}
               style={estilos.btnGuardar}
             >
-              Guardar
+              💾 Guardar Configuración
             </button>
           </div>
+
           <small style={estilos.help}>
-            Saltará una alerta de calidad cada vez que el contador sea múltiplo
-            de este número.
+            {Number(config.alerta_cada) === -1
+              ? "Se revisará la pieza #1 y la pieza final (#" +
+                config.limite_caja +
+                ")."
+              : "Se revisará cada " +
+                config.alerta_cada +
+                " piezas escaneadas."}
           </small>
         </div>
       </div>

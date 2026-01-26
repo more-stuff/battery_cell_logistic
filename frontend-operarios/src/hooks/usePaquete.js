@@ -6,6 +6,7 @@ export const usePaquete = (usuario) => {
   const [config, setConfig] = useState({
     alerta_cada: 15, // Valor por defecto si falla la red
     limite_caja: 180, // Valor por defecto
+    level_size: 45,
   });
 
   const [huActual, setHuActual] = useState("");
@@ -24,6 +25,7 @@ export const usePaquete = (usuario) => {
         setConfig({
           alerta_cada: Number(datos.alerta_cada),
           limite_caja: Number(datos.limite_caja),
+          level_size: 45,
         });
         console.log("✅ Configuración cargada:", datos);
       } catch (error) {
@@ -55,11 +57,18 @@ export const usePaquete = (usuario) => {
 
     // Intentamos leer del LocalStorage PERSONALIZADO de este usuario
     const savedCeldas = localStorage.getItem(KEY_CELDAS);
+
     const savedHu = localStorage.getItem(KEY_HU);
     const savedFecha = localStorage.getItem(KEY_FECHA);
 
     if (savedCeldas) {
-      setCeldas(JSON.parse(savedCeldas));
+      try {
+        setCeldas(JSON.parse(savedCeldas));
+      } catch (error) {
+        console.error("Datos locales corruptos, reiniciando caja:", error);
+        localStorage.removeItem(KEY_CELDAS); // Autocuración
+        setCeldas([]);
+      }
     } else {
       setCeldas([]); // Si es un usuario nuevo, empezamos limpio
     }
@@ -155,8 +164,11 @@ export const usePaquete = (usuario) => {
       codigo_celda: celdaInput,
       hu_asociado: huActual,
       fecha_caducidad: fechaFormateada,
-      es_revision: (celdas.length + 1) % config.alerta_cada === 0,
       timestamp: new Date().toISOString(),
+      es_revision:
+        config.alerta_cada === -1
+          ? celdas.length + 1 === 1 || celdas.length + 1 === config.limite_caja
+          : (celdas.length + 1) % config.alerta_cada === 0,
     };
 
     const nuevasCeldas = [...celdas, nuevaCelda];
@@ -164,20 +176,45 @@ export const usePaquete = (usuario) => {
     setCeldaInput("");
 
     // Alerta preventiva
-    const siguientePieza = nuevasCeldas.length + 1;
-    const requiereRevision =
-      siguientePieza % config.alerta_cada === 0 &&
-      siguientePieza <= config.limite_caja;
+    const total_celdas = nuevasCeldas.length;
+    let requiereRevision = false;
+
+    // LÓGICA VARIABLE:
+    if (config.alerta_cada === -1) {
+      // MODO A: "Solo Primera y Última"
+      // Salta si es la pieza 1 O si es la pieza final (180)
+      requiereRevision =
+        total_celdas === 0 || total_celdas + 1 === config.limite_caja;
+    } else if (config.alerta_cada > 0) {
+      // MODO B: "Intervalos" (Lo que tenías antes)
+      // Salta cada X piezas (ej: 15, 30, 45...)
+      requiereRevision = totalPiezas + (1 % config.alerta_cada) === 0;
+    }
+
+    const nivelCompletado =
+      total_celdas % config.level_size === 0 &&
+      total_celdas < config.limite_caja;
+    const numeroNivel = Math.floor(total_celdas / config.level_size);
 
     return {
       success: true,
       revision: requiereRevision, // true o false
-      numeroPieza: siguientePieza, // Para mostrarlo en la alerta
+      numeroPieza: total_celdas + 1, // Para mostrarlo en la alerta
+      nivelCompletado: nivelCompletado,
+      numeroNivel: numeroNivel,
     };
   };
 
   const borrarCelda = (index) => {
     const nuevas = celdas.filter((_, i) => i !== index);
+    setCeldas(nuevas);
+    if (nuevas.length === 0) setFechaInicio(null);
+  };
+
+  const borrarDesde = (index) => {
+    // Si l'índex és 2, volem quedar-nos amb 0 i 1.
+    // slice(0, index) fa just això.
+    const nuevas = celdas.slice(0, index);
     setCeldas(nuevas);
     if (nuevas.length === 0) setFechaInicio(null);
   };
@@ -252,14 +289,14 @@ export const usePaquete = (usuario) => {
     celdaInput,
     setCeldaInput,
     celdas,
-    //alertaRevision,
-    //setAlertaRevision,
     enviando,
     idGuardado,
     resetProceso,
     agregarCelda,
     borrarCelda,
+    borrarDesde,
     enviarDatos,
     limite: config.limite_caja,
+    level_size: config.level_size,
   };
 };

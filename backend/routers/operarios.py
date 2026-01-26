@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
+import logging
 import uuid
 
 # Imports relativos (salimos de la carpeta routers para buscar estos archivos)
 import models, schemas
 from database import get_db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/reempaque",  # Todas las rutas empezarán por /reempaque
@@ -18,6 +21,9 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
 
     try:
         # 1. CALCULAR LA PEOR CADUCIDAD (MIN)
+        logger.info(
+            f"Iniciando cierre de caja para usuario {datos.usuario_id} con {len(datos.celdas)} celdas."
+        )
         # Sacamos todas las fechas de las celdas que nos envía el frontend
         lista_fechas = [c.fecha_caducidad for c in datos.celdas]
 
@@ -66,10 +72,18 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
             db.add(nueva_celda)
 
         db.commit()
-
+        logger.info(f"Caja {nueva_caja.id_temporal} guardada correctamente.")
         return {"mensaje": "Caja guardada", "id_temporal": nueva_caja.id_temporal}
 
     except Exception as e:
         db.rollback()  # <--- tira para atras todo lo que habia hecho
-        print(f"Error crítico: {e}")
+
+        # <--- 3. EL CAMBIO CRÍTICO: LOGGING CON CONTEXTO
+        # logger.error: Indica que es un fallo grave.
+        # exc_info=True: Adjunta AUTOMÁTICAMENTE toda la traza del error (dónde ocurrió).
+        logger.error(
+            f"FALLO CRÍTICO al guardar caja para usuario {datos.usuario_id}: {str(e)}",
+            exc_info=True,
+        )
+
         raise HTTPException(status_code=500, detail="Error guardando caja")

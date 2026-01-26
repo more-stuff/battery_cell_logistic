@@ -27,11 +27,20 @@ function Operario() {
     resetProceso,
     agregarCelda,
     borrarCelda,
+    borrarDesde,
     enviarDatos,
     limite,
+    level_size,
   } = usePaquete(usuario);
 
-  // 1. CREAMOS LA REFERENCIA PARA LA IMPRESORA
+  // calculo celdas a mostrar en pantalla
+  const indexIniciNivell = Math.max(
+    0,
+    Math.floor((celdas.length - 1) / level_size) * level_size,
+  );
+  const celdas_visuales = celdas.slice(indexIniciNivell);
+
+  // referncia para la impresion
   const componentRef = useRef(null);
 
   const handlePrint = useReactToPrint({
@@ -191,7 +200,12 @@ function Operario() {
               🗑️ LIMPIAR
             </button>
           )}
-          <PanelHistorico celdas={celdas} onBorrar={borrarCelda} />
+          <PanelHistorico
+            celdas={celdas_visuales}
+            onBorrar={borrarCelda}
+            offsetIndex={indexIniciNivell}
+            onBorrarDesde={borrarDesde}
+          />
         </div>
       </main>
       {/* Esto está oculto al ojo (display: none) pero SIEMPRE existe en el HTML. */}

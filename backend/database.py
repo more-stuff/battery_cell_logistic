@@ -8,8 +8,16 @@ SQLALCHEMY_DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://postgres:admin@localhost/trazabilidad"
 )
 
+db_connection_args = {"options": "-c statement_timeout=30000"}  # 30000 ms = 30 segundos
+
 # 2. CREAR EL MOTOR (Con Pooling activado para concurrencia)
-engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_size=20, max_overflow=10)
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_size=5,
+    max_overflow=10,
+    pool_pre_ping=True,
+    connect_args=db_connection_args,
+)
 
 # 3. SESIÓN
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -25,7 +25,7 @@ api.interceptors.response.use(
       localStorage.removeItem("admin_token");
       localStorage.removeItem("admin_user");
       // Opcional: Redirigir o recargar
-      // window.location.reload();
+      window.location.reload();
     }
     return Promise.reject(error);
   },
