@@ -117,6 +117,7 @@ function Operario() {
                 <Etiqueta
                   id={idGuardado}
                   fecha={new Date().toLocaleDateString()}
+                  op_id={usuario}
                 />
               </div>
             </div>
@@ -199,6 +200,7 @@ function Operario() {
           <Etiqueta
             id={idGuardado ?? ""}
             fecha={new Date().toLocaleDateString()}
+            op_id={usuario}
           />
         </div>
       </div>

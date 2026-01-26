@@ -1,5 +1,12 @@
 import { estilos } from "../../styles/AdminConsulta.styles";
 
+const col_colors = {
+  incomming_area: "#83e28e",
+  repacking_area: "#e49edd",
+  outbound_area: "#f7c7ac",
+  powerco_area: "#83cceb",
+};
+
 export const AdminTabla = ({
   resultados,
   disponibles,
@@ -26,40 +33,69 @@ export const AdminTabla = ({
           <thead>
             <tr>
               {columnasActivas.map((col) => (
-                <th key={col.id} style={estilos.thModern}>
+                <th
+                  key={col.id}
+                  style={{
+                    ...estilos.thModern,
+                    backgroundColor: col_colors[col.group] || "#e5e7eb",
+                  }}
+                >
                   {col.label}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {resultados.map((row, index) => (
-              <tr
-                key={index}
-                style={{
-                  backgroundColor: index % 2 === 0 ? "#ffffff" : "#f9fafb",
-                  borderBottom: "1px solid #e5e7eb",
-                }}
-              >
-                {columnasActivas.map((col) => (
-                  <td key={col.id} style={estilos.tdModern}>
-                    {col.id === "status" ? (
-                      <span
-                        style={
-                          row[col.id] === "OK"
-                            ? estilos.badgeOK
-                            : estilos.badgeNeutral
-                        }
-                      >
-                        {row[col.id] || "-"}
-                      </span>
-                    ) : (
-                      formatValor(row, col.id)
-                    )}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {resultados.map((row, index) => {
+              // 👇 1. DETECTAMOS SI ES REVISIÓN
+              // (Comprobamos ambas claves por seguridad: 'calidad' o 'estado_calidad')
+              const esRevision =
+                row.calidad === "REVISION" || row.estado_calidad === "REVISION";
+
+              // 👇 2. DEFINIMOS EL COLOR DE FONDO
+              let bgColor = index % 2 === 0 ? "#ffffff" : "#f9fafb"; // Default alternado
+              if (esRevision) bgColor = "#fee2e2"; // Rojo suave si es revisión
+
+              return (
+                <tr
+                  key={index}
+                  style={{
+                    backgroundColor: bgColor,
+                    borderBottom: "1px solid #e5e7eb",
+                    // 👇 3. BORDE ROJO LATERAL SI ES REVISIÓN
+                    borderLeft: esRevision ? "5px solid #ef4444" : "none",
+                  }}
+                >
+                  {columnasActivas.map((col) => (
+                    <td key={col.id} style={estilos.tdModern}>
+                      {/* Lógica especial para mostrar badges bonitos en la columna de Calidad/Status */}
+                      {col.id === "status" ||
+                      col.id === "estado_calidad" ||
+                      col.id === "calidad" ? (
+                        <span
+                          style={
+                            row[col.id] === "OK" || row[col.id] === "PENDING" // PENDING o OK en verde/neutro
+                              ? estilos.badgeOK
+                              : row[col.id] === "REVISION" // REVISION en rojo fuerte
+                                ? {
+                                    ...estilos.badgeNeutral,
+                                    backgroundColor: "#ef4444",
+                                    color: "white",
+                                    fontWeight: "bold",
+                                  }
+                                : estilos.badgeNeutral
+                          }
+                        >
+                          {row[col.id] || "-"}
+                        </span>
+                      ) : (
+                        formatValor(row, col.id)
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 

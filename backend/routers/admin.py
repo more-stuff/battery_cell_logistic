@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, text
@@ -12,7 +13,7 @@ import io
 
 
 from database import get_db
-import models, schemas
+import models, schemas, auth
 
 # Fíjate que NO importamos schemas aquí para el modelo de entrada,
 # lo definimos localmente para evitar el error que tienes.
@@ -20,10 +21,72 @@ import models, schemas
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
+@router.post("/login", response_model=schemas.Token)
+def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+):
+    # Buscamos usuario
+    user = (
+        db.query(models.UsuarioAdmin)
+        .filter(models.UsuarioAdmin.username == form_data.username)
+        .first()
+    )
+
+    # Verificamos contraseña
+    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario o contraseña incorrectos",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Creamos token
+    access_token = auth.create_access_token(
+        data={"sub": user.username, "rol": user.rol}
+    )
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "username": user.username,
+        "rol": user.rol,
+    }
+
+
+# --- 2. ENDPOINT "SECRETO" PARA CREAR USUARIOS (Usar con Postman) ---
+@router.post("/register", status_code=201)
+def registrar_admin(usuario: schemas.AdminCreate, db: Session = Depends(get_db)):
+    # Ver si ya existe
+    existe = (
+        db.query(models.UsuarioAdmin)
+        .filter(models.UsuarioAdmin.username == usuario.username)
+        .first()
+    )
+    if existe:
+        raise HTTPException(status_code=400, detail="El usuario ya existe")
+
+    # Hashear password
+    print(f"👀 USUARIO RECIBIDO: {usuario.username}")
+    print(f"👀 LONGITUD PASSWORD: {len(usuario.password)}")
+    print(f"👀 CONTENIDO PASSWORD: '{usuario.password}'")
+
+    hashed_pw = auth.get_password_hash(usuario.password)
+
+    nuevo_admin = models.UsuarioAdmin(
+        username=usuario.username,
+        hashed_password=hashed_pw,
+        rol=usuario.rol,
+    )
+    db.add(nuevo_admin)
+    db.commit()
+    return {"mensaje": f"Usuario {usuario.username} creado con rol {usuario.rol}"}
+
+
 # --- FUNCIÓN PRINCIPAL ---
 @router.put("/incoming/actualizar")
 def actualizar_datos_entrada(
-    datos: schemas.IncomingData, db: Session = Depends(get_db)
+    datos: schemas.IncomingData,
+    db: Session = Depends(get_db),
+    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
 ):
     # 1. Buscamos el Palet por su HU
     palet = (
@@ -67,7 +130,11 @@ def actualizar_datos_entrada(
 
 # RUTA PARA REGISTRAR SALIDA
 @router.put("/outbound/actualizar")
-def registrar_salida(datos: schemas.OutboundData, db: Session = Depends(get_db)):
+def registrar_salida(
+    datos: schemas.OutboundData,
+    db: Session = Depends(get_db),
+    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
+):
     # 1. Buscamos la caja por su ID Temporal (TMP-...)
     caja = (
         db.query(models.CajaReempaque)
@@ -87,7 +154,7 @@ def registrar_salida(datos: schemas.OutboundData, db: Session = Depends(get_db))
         caja.numero_salida_delivery = datos.numero_salida
 
     if datos.handling_unit:
-        caja.hu_final_embarque = datos.handling_unit
+        caja.handling_unit = datos.handling_unit
 
     if datos.fecha_envio != "":
         caja.fecha_envio = datos.fecha_envio
@@ -164,6 +231,7 @@ def construir_fila(celda, caja, palet):
             getattr(caja, "usuario_id", "") if caja else ""
         ),  # <--- TU DATO NUEVO
         "dmc": celda.dmc_code,
+        "estado_calidad": getattr(celda, "estado_calidad", "OK"),
         "id_temporal": caja.id_temporal,
         "caducidad_celda": celda.fecha_caducidad,
         "caducidad_antigua": celda.fecha_caducidad,
@@ -171,7 +239,7 @@ def construir_fila(celda, caja, palet):
         "hu_silena": getattr(caja, "hu_silena_outbound", "") or "",
         "ubicacion": getattr(caja, "ubicacion_estanteria", "") or "",
         "n_salida": getattr(caja, "numero_salida_delivery", "") or "",
-        "hu_final": getattr(caja, "hu_final_embarque", "") or "",
+        "handling_unit": getattr(caja, "handling_unit", "") or "",
         "fecha_envio": getattr(caja, "fecha_envio", None),
     }
 
@@ -189,12 +257,14 @@ def buscar_preview(
     # NUEVO PARÁMETRO: Recibimos las columnas separadas por coma
     cols: Optional[str] = Query(None),
     db: Session = Depends(get_db),
+    # proteger ruta
+    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
 ):
     base_query = db.query(models.Celda)
     query = aplicar_filtros(
         base_query, dmc, hu_entrada, hu_salida, fecha_inicio, fecha_fin, fecha_caducidad
     )
-    resultados = query.limit(50).all()
+    resultados = query.limit(180).all()
 
     # Parsear columnas solicitadas (si no envían nada, devolvemos todo por defecto)
     columnas_pedidas = cols.split(",") if cols else None
@@ -230,6 +300,7 @@ def exportar_csv(
         None
     ),  # <--- NUEVO (Para las cabeceras bonitas del Excel)
     db: Session = Depends(get_db),
+    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
 ):
     base_query = db.query(models.Celda)
     query = aplicar_filtros(
@@ -280,7 +351,10 @@ def exportar_csv(
 
 # --- ENDPOINT 1: OBTENER CONFIGURACIÓN (Para Frontend) ---
 @router.get("/config", response_model=schemas.ConfigResponse)
-def obtener_configuracion(db: Session = Depends(get_db)):
+def obtener_configuracion(
+    db: Session = Depends(get_db),
+    current_user: models.UsuarioAdmin = Depends(auth.require_super_admin),
+):
     # Buscamos los valores en la DB
     conf_alerta = db.query(models.Configuracion).filter_by(clave="alerta_cada").first()
     conf_limite = db.query(models.Configuracion).filter_by(clave="limite_caja").first()
@@ -294,7 +368,11 @@ def obtener_configuracion(db: Session = Depends(get_db)):
 
 # --- ENDPOINT 2: MODIFICAR CONFIGURACIÓN (Para Admin) ---
 @router.put("/config")
-def actualizar_configuracion(datos: schemas.ConfigInput, db: Session = Depends(get_db)):
+def actualizar_configuracion(
+    datos: schemas.ConfigInput,
+    db: Session = Depends(get_db),
+    current_user: models.UsuarioAdmin = Depends(auth.require_super_admin),
+):
     # Buscamos la clave (ej: "alerta_cada")
     config = db.query(models.Configuracion).filter_by(clave=datos.clave).first()
 

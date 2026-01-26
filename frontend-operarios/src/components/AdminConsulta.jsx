@@ -10,24 +10,28 @@ import { AdminToolbar } from "../components/admin/AdminToolbar";
 import { AdminTabla } from "../components/admin/AdminTabla";
 
 const COLUMNAS_DISPONIBLES = [
-  { id: "fecha_recibo", label: "F. Recibo" },
-  { id: "awb", label: "AWB / SWB" },
-  { id: "np", label: "NP Packing" },
-  { id: "status", label: "Status" },
-  { id: "hu_proveedor", label: "HU Proveedor" },
-  { id: "caducidad_inbound", label: "Cad. Inbound" },
-  { id: "fecha_reempaque", label: "F. Reempaque" },
-  { id: "operario", label: "👷 Operario (Interno)" },
-  { id: "hu_silena", label: "HU Silena" },
-  { id: "dmc", label: "DMC (Celda)" },
-  { id: "id_temporal", label: "ID Temporal" },
-  { id: "caducidad_celda", label: "Cad. Celda" },
-  { id: "caducidad_antigua", label: "Cad. Antigua" },
-  { id: "fecha_almacenamiento", label: "F. Almacén" },
-  { id: "ubicacion", label: "Ubicación" },
-  { id: "n_salida", label: "Nº Salida" },
-  { id: "hu_final", label: "HU Final" },
-  { id: "fecha_envio", label: "F. Envío" },
+  { id: "fecha_recibo", label: "F. Recibo", group: "incomming_area" },
+  { id: "awb", label: "AWB / SWB", group: "incomming_area" },
+  { id: "np", label: "NP Packing", group: "incomming_area" },
+  { id: "status", label: "Status", group: "incomming_area" },
+  { id: "hu_proveedor", label: "HU Proveedor", group: "incomming_area" },
+  { id: "caducidad_inbound", label: "Cad. Inbound", group: "incomming_area" },
+
+  { id: "fecha_reempaque", label: "F. Reempaque", group: "repacking_area" },
+  { id: "operario", label: "👷 Operario (Interno)", group: "repacking_area" },
+  { id: "dmc", label: "DMC (Celda)", group: "repacking_area" },
+  { id: "id_temporal", label: "ID Temporal", group: "repacking_area" },
+  { id: "caducidad_celda", label: "Cad. Celda", group: "repacking_area" },
+  { id: "caducidad_antigua", label: "Cad. Antigua", group: "repacking_area" },
+  { id: "estado_calidad", label: "Calidad estado", group: "repacking_area" },
+
+  { id: "hu_silena", label: "HU Silena", group: "outbound_area" },
+  { id: "ubicacion", label: "Ubicación", group: "outbound_area" },
+  { id: "fecha_almacenamiento", label: "F. Almacén", group: "outbound_area" },
+
+  { id: "n_salida", label: "Nº Salida", group: "powerco_area" },
+  { id: "handling_unit", label: "Handling Unit", group: "powerco_area" },
+  { id: "fecha_envio", label: "F. Envío", group: "powerco_area" },
 ];
 
 export const AdminConsulta = () => {
@@ -130,6 +134,8 @@ export const AdminConsulta = () => {
       setLoadingCSV(false);
     }
   };
+
+  console.log(resultados);
 
   // --- RENDER ---
   return (

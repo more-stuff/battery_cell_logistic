@@ -8,6 +8,44 @@ const api = axios.create({
   timeout: 5000, // 10 segundos máximo
 });
 
+// Antes de que salga cualquier petición, le pegamos el Token si existe
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("admin_token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Si el servidor dice "401 Unauthorized" (token caducado), cerramos sesión
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem("admin_token");
+      localStorage.removeItem("admin_user");
+      // Opcional: Redirigir o recargar
+      // window.location.reload();
+    }
+    return Promise.reject(error);
+  },
+);
+
+// --- NUEVA FUNCIÓN DE LOGIN ---
+export const loginAdmin = async (username, password) => {
+  // El backend espera form-data, no JSON, por el estándar OAuth2
+  const params = new URLSearchParams();
+  params.append("username", username);
+  params.append("password", password);
+
+  const response = await api.post(`/admin/login`, params, {
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+  });
+  return response.data; // Devuelve { access_token, rol, username... }
+};
+
 export const enviarPaquete = async (payload) => {
   // Aquí hacemos la llamada limpia
   const response = await axios.post(`${API_URL}/reempaque/finalizar`, payload);

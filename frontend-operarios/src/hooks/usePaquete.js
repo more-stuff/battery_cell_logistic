@@ -217,6 +217,7 @@ export const usePaquete = (usuario) => {
           dmc_code: c.codigo_celda,
           fecha_caducidad: c.fecha_caducidad,
           hu_origen: c.hu_asociado,
+          estado_calidad: c.es_revision ? "REVISION" : "OK",
         })),
       };
 

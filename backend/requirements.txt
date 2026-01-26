@@ -4,3 +4,7 @@ SQLAlchemy==2.0.46
 gunicorn
 psycopg2-binary
 uvicorn
+
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart

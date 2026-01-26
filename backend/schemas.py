@@ -9,6 +9,7 @@ class CeldaInput(BaseModel):
     dmc_code: str  # El código escaneado
     fecha_caducidad: date  # Extraída o seleccionada
     hu_origen: str  # El HU de la caja de donde salió (Sticky input)
+    estado_calidad: Optional[str] = "OK"  # si ha tenido revision manual o no
 
 
 # El paquete completo de 180 celdas
@@ -67,3 +68,21 @@ class ConfigInput(BaseModel):
 class ConfigResponse(BaseModel):
     alerta_cada: int
     limite_caja: int
+
+
+class AdminCreate(BaseModel):
+    username: str
+    password: str
+    rol: str = "standard"  # "standard" o "superadmin"
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    username: str
+    rol: str
+
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+    rol: Optional[str] = None

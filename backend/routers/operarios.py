@@ -61,6 +61,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
                 hu_origen_id=celda_in.hu_origen,
                 dmc_code=celda_in.dmc_code,
                 fecha_caducidad=celda_in.fecha_caducidad,
+                estado_calidad=celda_in.estado_calidad,
             )
             db.add(nueva_celda)
 

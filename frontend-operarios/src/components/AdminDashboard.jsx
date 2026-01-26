@@ -1,14 +1,37 @@
-import { useState } from "react";
-
-// Importamos tus 4 pantallas
+import { useState, useEffect } from "react";
 import { AdminIncoming } from "./AdminIncoming";
 import { AdminOutbound } from "./AdminOutbound";
 import { AdminConsulta } from "./AdminConsulta";
-import { AdminConfig } from "./AdminConfig"; // <--- NUEVO IMPORT
+import { AdminConfig } from "./AdminConfig";
+import { AdminLogin } from "./AdminLogin"; // <--- Importamos el Login
 
 export const AdminDashboard = () => {
+  const [user, setUser] = useState(null); // Estado del usuario logueado
   const [pestanaActual, setPestanaActual] = useState("incoming");
 
+  // AL CARGAR: Comprobar si ya estamos logueados de antes
+  useEffect(() => {
+    const savedUser = localStorage.getItem("admin_user");
+    const savedToken = localStorage.getItem("admin_token");
+
+    if (savedUser && savedToken) {
+      setUser(JSON.parse(savedUser));
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("admin_user");
+    localStorage.removeItem("admin_token");
+    setUser(null);
+    setPestanaActual("incoming");
+  };
+
+  // SI NO HAY USUARIO -> MOSTRAMOS LOGIN
+  if (!user) {
+    return <AdminLogin onLoginSuccess={(userData) => setUser(userData)} />;
+  }
+
+  // SI HAY USUARIO -> MOSTRAMOS DASHBOARD
   const renderizarContenido = () => {
     switch (pestanaActual) {
       case "incoming":
@@ -17,8 +40,13 @@ export const AdminDashboard = () => {
         return <AdminOutbound />;
       case "consulta":
         return <AdminConsulta />;
-      case "config": // <--- NUEVO CASO
-        return <AdminConfig />;
+      case "config":
+        // Protección extra por si alguien intenta forzar la vista
+        return user.rol === "superadmin" ? (
+          <AdminConfig />
+        ) : (
+          <p>Acceso Restringido</p>
+        );
       default:
         return <AdminIncoming />;
     }
@@ -28,7 +56,14 @@ export const AdminDashboard = () => {
     <div style={estilos.layout}>
       {/* === BARRA LATERAL === */}
       <div style={estilos.sidebar}>
-        <div style={estilos.logo}>⚙️ ADMIN PANEL</div>
+        <div style={estilos.logo}>
+          ⚙️ ADMIN PANEL
+          <div
+            style={{ fontSize: "0.8rem", color: "#95a5a6", marginTop: "5px" }}
+          >
+            Hola, {user.username}
+          </div>
+        </div>
 
         <nav style={estilos.menu}>
           <button
@@ -58,16 +93,31 @@ export const AdminDashboard = () => {
             🔍 CONSULTAR INFO
           </button>
 
-          {/* ESPACIADOR PARA SEPARAR LA CONFIGURACIÓN */}
+          {/* ESPACIADOR */}
           <div style={{ flex: 1 }}></div>
 
+          {/* 👇 SOLO VISIBLE PARA SUPERADMIN */}
+          {user.rol === "superadmin" && (
+            <button
+              onClick={() => setPestanaActual("config")}
+              style={
+                pestanaActual === "config" ? estilos.botonActivo : estilos.boton
+              }
+            >
+              ⚙️ CONFIGURACIÓN GLOBAL
+            </button>
+          )}
+
+          {/* BOTÓN SALIR */}
           <button
-            onClick={() => setPestanaActual("config")}
-            style={
-              pestanaActual === "config" ? estilos.botonActivo : estilos.boton
-            }
+            onClick={handleLogout}
+            style={{
+              ...estilos.boton,
+              color: "#e74c3c",
+              borderTop: "1px solid #34495e",
+            }}
           >
-            ⚙️ CONFIGURACIÓN GLOBAL
+            🚪 CERRAR SESIÓN
           </button>
         </nav>
       </div>
@@ -78,7 +128,8 @@ export const AdminDashboard = () => {
   );
 };
 
-// --- ESTILOS ---
+// ... (Los estilos se mantienen igual que en tu archivo original) ...
+// Puedes copiar y pegar tus estilos aquí abajo.
 const estilos = {
   layout: {
     display: "flex",
@@ -109,15 +160,14 @@ const estilos = {
     display: "flex",
     flexDirection: "column",
     gap: "10px",
-    height: "100%", // Para que el espaciador funcione
+    height: "100%",
   },
   contenido: {
     flex: 1,
     backgroundColor: "#ecf0f1",
     overflowY: "auto",
-    padding: "20px", // Un poco de padding al contenido general queda bien
+    padding: "20px",
   },
-  // BOTÓN INACTIVO
   boton: {
     padding: "15px 20px",
     textAlign: "left",
@@ -133,7 +183,6 @@ const estilos = {
     alignItems: "center",
     gap: "10px",
   },
-  // BOTÓN ACTIVO
   botonActivo: {
     padding: "15px 20px",
     textAlign: "left",

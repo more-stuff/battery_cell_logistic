@@ -54,10 +54,11 @@ class CajaReempaque(Base):
     hu_silena_outbound = Column(
         String(100), nullable=True, index=True
     )  # ID Final Cliente
+
     numero_salida_delivery = Column(String(50), nullable=True)
-    hu_final_embarque = Column(String(100), nullable=True)  # Handling Unit Final
     fecha_envio = Column(DateTime, nullable=True)
 
+    handling_unit = Column(String(100), nullable=True)  # Handling Unit Final
     # Relación: Una caja contiene muchas celdas
     celdas = relationship(
         "Celda", back_populates="caja_destino", cascade="all, delete-orphan"
@@ -86,6 +87,9 @@ class Celda(Base):
     dmc_code = Column(String(200), unique=True, index=True)
     fecha_caducidad = Column(Date)
 
+    # Guardará "OK" o "REVISION"
+    estado_calidad = Column(String(50), default="OK")
+
 
 class Configuracion(Base):
     __tablename__ = "configuraciones"
@@ -93,3 +97,14 @@ class Configuracion(Base):
     # Ejemplo: clave="alerta_cada", valor="15"
     clave = Column(String(50), primary_key=True, index=True)
     valor = Column(String(200))  # Lo guardamos como String para ser flexibles
+
+
+class UsuarioAdmin(Base):
+    __tablename__ = "usuarios_admin"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, index=True)
+    hashed_password = Column(String(200))
+
+    # Roles: "standard" (Entrada/Salida) | "superadmin" (Configuración + Todo)
+    rol = Column(String(20), default="standard")

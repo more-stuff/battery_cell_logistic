@@ -62,7 +62,7 @@ export const AdminToolbar = ({
           disabled={loadingCSV}
           style={estilos.btnActionSecondary}
         >
-          {loadingCSV ? "Generando..." : `📥 Descargar Excel (${numCols} cols)`}
+          {loadingCSV ? "Generando..." : `📥 Descargar csv (${numCols} cols)`}
         </button>
       </div>
     </div>
