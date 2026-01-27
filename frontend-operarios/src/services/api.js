@@ -146,3 +146,19 @@ export const guardarConfiguracion = async (clave, valor) => {
     throw error;
   }
 };
+
+export const importarDefectuosos = async (archivo) => {
+  const formData = new FormData();
+  formData.append("file", archivo);
+  return (
+    await api.post("/admin/importar-defectuosos", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+  ).data;
+};
+
+export const obtenerDmcDefectuosos = async () => {
+  const response = await api.get("/admin/dmc-defectuosos");
+
+  return response.data; // Devuelve ["A1", "B2", ...]
+};

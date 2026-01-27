@@ -1,6 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Children } from "react";
 import Swal from "sweetalert2";
-import { obtenerConfiguracion, guardarConfiguracion } from "../services/api";
+import {
+  obtenerConfiguracion,
+  guardarConfiguracion,
+  importarDefectuosos,
+} from "../services/api";
 
 export const AdminConfig = () => {
   // Estados para los valores
@@ -61,6 +65,40 @@ export const AdminConfig = () => {
         text: "No se pudo guardar el cambio",
       });
     }
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Confirmación visual
+    const result = await Swal.fire({
+      title: "¿Importar Defectuosos?",
+      text: `Se cargarán los códigos del archivo: ${file.name}`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Sí, importar",
+      confirmButtonColor: "#d33",
+    });
+
+    if (result.isConfirmed) {
+      try {
+        Swal.showLoading(); // Mostrar spinner
+        const res = await importarDefectuosos(file);
+        console.log(res);
+        Swal.fire("Importado", res.mensaje, "success");
+      } catch (error) {
+        console.error(error);
+        Swal.fire(
+          "Error",
+          "Fallo al leer el archivo. Revisa que tenga columna 'DMC'.",
+          "error",
+        );
+      }
+    }
+
+    // Limpiar el input para permitir subir el mismo archivo otra vez si falla
+    e.target.value = null;
   };
 
   if (loading) return <p>Cargando configuración...</p>;
@@ -157,6 +195,22 @@ export const AdminConfig = () => {
               : "Se revisará cada " +
                 config.alerta_cada +
                 " piezas escaneadas."}
+          </small>
+        </div>
+        <div style={estilos.item}>
+          <label style={estilos.label}>
+            🚨 Carga Masiva de Defectuosos (CSV)
+          </label>
+          <div style={estilos.inputGroup}>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFileUpload}
+              style={{ ...estilos.input, border: "2px dashed #e74c3c" }}
+            />
+          </div>
+          <small style={estilos.help}>
+            El archivo debe tener una cabecera llamada <b>DMC</b>.
           </small>
         </div>
       </div>

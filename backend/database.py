@@ -9,6 +9,7 @@ SQLALCHEMY_DATABASE_URL = os.getenv(
 )
 
 db_connection_args = {"options": "-c statement_timeout=30000"}  # 30000 ms = 30 segundos
+db_connection_args = {"options": "-c statement_timeout=15000"}  # 30000 ms = 30 segundos
 
 # 2. CREAR EL MOTOR (Con Pooling activado para concurrencia)
 engine = create_engine(

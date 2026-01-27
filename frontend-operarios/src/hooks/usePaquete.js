@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
-import { enviarPaquete, obtenerConfiguracion } from "../services/api";
+import {
+  enviarPaquete,
+  obtenerConfiguracion,
+  obtenerDmcDefectuosos,
+} from "../services/api";
 import Swal from "sweetalert2";
 
 export const usePaquete = (usuario) => {
@@ -15,6 +19,8 @@ export const usePaquete = (usuario) => {
   const [fechaInicio, setFechaInicio] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [idGuardado, setIdGuardado] = useState(null); //  Para guardar el ID que nos devuelve el servidor
+
+  const [blacklist, setBlacklist] = useState(new Set());
 
   useEffect(() => {
     const cargarDatosBackend = async () => {
@@ -37,6 +43,19 @@ export const usePaquete = (usuario) => {
     };
 
     cargarDatosBackend();
+  }, []);
+
+  useEffect(() => {
+    // Cargamos la lista negra al iniciar la sesión del operario
+    const cargarNegra = async () => {
+      try {
+        const lista = await obtenerDmcDefectuosos();
+        setBlacklist(new Set(lista)); // Usamos Set para que la búsqueda sea instantánea
+      } catch (e) {
+        console.error("Error cargando lista negra", e);
+      }
+    };
+    cargarNegra();
   }, []);
 
   // gestion del localstorage
@@ -117,6 +136,15 @@ export const usePaquete = (usuario) => {
       };
     if (celdas.length >= config.limite_caja)
       return { error: "📦 Paquete lleno.", type: "duplicate_error" };
+
+    if (blacklist.has(celdaInput)) {
+      setCeldaInput("");
+      return {
+        error:
+          "🚨 PIEZA DEFECTUOSA: Este código DMC está marcado como defectuoso de fábrica y no puede ser procesado, dejala a parte para escanearla en la caja de defectuosos",
+        type: "duplicate_error",
+      };
+    }
 
     // Evitar duplicados
     if (celdas.some((c) => c.codigo_celda === celdaInput)) {

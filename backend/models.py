@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Date
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Date, func
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -108,3 +108,10 @@ class UsuarioAdmin(Base):
 
     # Roles: "standard" (Entrada/Salida) | "superadmin" (Configuración + Todo)
     rol = Column(String(20), default="standard")
+
+
+class DMCDefectuoso(Base):
+    __tablename__ = "dmc_defectuosos"
+    # El DMC es único y servirá como nuestra llave primaria para búsquedas rápidas
+    dmc_code = Column(String, primary_key=True, index=True)
+    fecha_importacion = Column(DateTime, default=func.now())
