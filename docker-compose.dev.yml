@@ -12,6 +12,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    env_file:
+      - .env
     ports:
       - "5433:5432" # <--- OJO: Uso el 5433 fuera para no chocar con la de producción
     volumes:
@@ -22,6 +24,8 @@ services:
     build:
       context: ./backend
     # Aseguramos que espere a que la db exista
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy

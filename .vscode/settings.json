@@ -1,3 +1,10 @@
 {
-  "python.languageServer": "None"
+  // Esto mantiene Pylance encendido pero le dice: "No juzgues mis tipos"
+  "python.analysis.typeCheckingMode": "off",
+
+  // Esto le dice: "Pero si uso una variable que no existe, avísame"
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportUndefinedVariable": "error",
+    "reportUnboundVariable": "error"
+  }
 }

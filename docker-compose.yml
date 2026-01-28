@@ -9,6 +9,8 @@ services:
       POSTGRES_DB: trazabilidad
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - .env
 
   # Tu Backend (FastAPI)
   backend:

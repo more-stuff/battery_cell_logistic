@@ -24,6 +24,41 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
         logger.info(
             f"Iniciando cierre de caja para usuario {datos.usuario_id} con {len(datos.celdas)} celdas."
         )
+
+        dmcs_entrantes = [c.dmc_code for c in datos.celdas]
+
+        if dmcs_entrantes:
+            # Consultamos de golpe si alguno de estos códigos ya existe en la tabla Celda
+            # (Usamos .in_ para hacerlo en una sola consulta rápida)
+            duplicados = (
+                db.query(models.Celda)
+                .filter(models.Celda.dmc_code.in_(dmcs_entrantes))
+                .all()
+            )
+
+            if duplicados:
+                # Si encontramos alguno, PARAMOS TODO.
+                # Preparamos un mensaje detallado de qué celdas son las culpables.
+                lista_errores = []
+                for celda in duplicados:
+                    # Buscamos en qué caja está para chivárselo al usuario
+                    caja_padre = db.query(models.CajaReempaque).get(
+                        celda.caja_reempaque_id
+                    )
+                    nombre_caja = (
+                        caja_padre.id_temporal if caja_padre else "Desconocida"
+                    )
+
+                    lista_errores.append(f"{celda.dmc_code} (en {nombre_caja})")
+
+                msg_error = (
+                    f"⛔ ERROR CRÍTICO: Se intentan guardar piezas que YA EXISTEN:\n "
+                    + "\n ".join(lista_errores)
+                )
+
+                # Devolvemos un 409 Conflict para que el Frontend sepa mostrarlo bonito
+                raise HTTPException(status_code=409, detail=msg_error)
+
         # Sacamos todas las fechas de las celdas que nos envía el frontend
         lista_fechas = [c.fecha_caducidad for c in datos.celdas]
 
@@ -44,6 +79,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
             fecha_fin_reempaque=datos.fecha_fin,
             # Guardamos la caducidad calculada
             fecha_caducidad_caja=peor_caducidad,
+            is_defective=datos.is_defective,
             # El resto (Outbound, Almacén) se queda en NULL automáticamente
         )
 
@@ -74,6 +110,10 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
         db.commit()
         logger.info(f"Caja {nueva_caja.id_temporal} guardada correctamente.")
         return {"mensaje": "Caja guardada", "id_temporal": nueva_caja.id_temporal}
+
+    except HTTPException as http_ex:
+        # Si lanzamos el error 409 manual, lo dejamos pasar tal cual
+        raise http_ex
 
     except Exception as e:
         db.rollback()  # <--- tira para atras todo lo que habia hecho

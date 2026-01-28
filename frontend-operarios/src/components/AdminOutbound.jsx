@@ -23,6 +23,13 @@ export const AdminOutbound = () => {
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
+  const handleKeyDown = (e) => {
+    // Si pulsan Enter en el HU, pasamos al siguiente campo en vez de enviar
+    if (e.key === "Enter") {
+      e.preventDefault();
+      fechaRef.current?.focus(); // Mueve el cursor a la fecha
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -100,6 +107,7 @@ export const AdminOutbound = () => {
               name="id_temporal"
               value={formData.id_temporal}
               onChange={handleChange}
+              onKeyDown={handleKeyDown}
               placeholder="Escanea el código aquí..."
               style={{
                 ...estilos.input,

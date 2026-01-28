@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
@@ -307,7 +307,10 @@ def exportar_csv(
     db: Session = Depends(get_db),
     current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
 ):
-    base_query = db.query(models.Celda)
+    base_query = db.query(models.Celda).options(
+        joinedload(models.Celda.caja_destino), joinedload(models.Celda.palet_origen)
+    )
+
     query = aplicar_filtros(
         base_query, dmc, hu_entrada, hu_salida, fecha_inicio, fecha_fin, fecha_caducidad
     )
@@ -455,7 +458,8 @@ async def importar_defectuosos(
         df = df[filtro_basura]
 
         codigos_nuevos = set(df["DMC"].unique())
-        existentes = set(x[0] for x in db.query(models.DMCDefectuoso.dmc_code).all())
+        existentes_query = db.query(models.DMCDefectuoso.dmc_code).all()
+        existentes = set(x[0] for x in existentes_query)
         a_insertar_lista = list(codigos_nuevos - existentes)
 
         objetos = [models.DMCDefectuoso(dmc_code=cod) for cod in a_insertar_lista]

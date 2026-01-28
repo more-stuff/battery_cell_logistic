@@ -1,4 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Date, func
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    ForeignKey,
+    Date,
+    func,
+    Boolean,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -37,6 +46,7 @@ class CajaReempaque(Base):
     # --- FASE 1: REEMPAQUE (Operario) ---
     id_temporal = Column(String(50), unique=True, index=True)  # TMP-XXXX
     usuario_id = Column(String(100))
+    is_defective = Column(Boolean, default=False)  # ver si la caja es defectuosa o no
 
     # Fechas específicas de la labor de reempaque
     fecha_inicio_reempaque = Column(DateTime)

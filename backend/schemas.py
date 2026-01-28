@@ -18,6 +18,7 @@ class ReempaqueInput(BaseModel):
     celdas: List[CeldaInput]  # Lista de 180 celdas
     fecha_inicio: datetime
     fecha_fin: datetime
+    is_defective: bool
 
 
 # Lo que devuelve el servidor al operario (para imprimir la etiqueta)

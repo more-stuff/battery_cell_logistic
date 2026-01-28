@@ -1,5 +1,6 @@
 import React from "react";
 import Swal from "sweetalert2";
+
 export default function PanelHistorico({
   celdas,
   onBorrar,
@@ -7,34 +8,34 @@ export default function PanelHistorico({
   offsetIndex,
 }) {
   const handleBorrarClick = (indexVisual) => {
-    // Calculem l'índex real dins de l'array global
+    // Calculamos el índice real dentro del array global
     const indexReal = offsetIndex + indexVisual;
 
     Swal.fire({
-      title: "¿Què vols fer?",
-      text: `Estàs a la peça #${indexReal + 1}`,
+      title: "¿Qué quieres hacer?",
+      text: `Estás en la pieza #${indexReal + 1}`,
       icon: "question",
       showCancelButton: true,
       showDenyButton: true,
-      confirmButtonColor: "#d33", // Vermell per acció forta
-      denyButtonColor: "#f39c12", // Taronja per acció suau
+      confirmButtonColor: "#d33", // Rojo para acción fuerte
+      denyButtonColor: "#f39c12", // Naranja para acción suave
       cancelButtonColor: "#3085d6",
-      confirmButtonText: "🧨 Esborrar des d'aquí fins al final",
-      denyButtonText: "🗑️ Esborrar només aquesta",
-      cancelButtonText: "Cancel·lar",
+      confirmButtonText: "🧨 Borrar desde aquí hasta el final",
+      denyButtonText: "🗑️ Borrar solo esta",
+      cancelButtonText: "Cancelar",
     }).then((result) => {
       if (result.isConfirmed) {
-        // Opció 1: Esborrar en massa
+        // Opción 1: Borrar en masa
         onBorrarDesde(indexReal);
         Swal.fire(
-          "Netejat!",
-          "S'han esborrat les peces posteriors.",
+          "¡Limpiado!",
+          "Se han borrado las piezas posteriores.",
           "success",
         );
       } else if (result.isDenied) {
-        // Opció 2: Esborrar només una
+        // Opción 2: Borrar solo una
         onBorrar(indexReal);
-        Swal.fire("Esborrat!", "La lectura ha estat eliminada.", "success");
+        Swal.fire("¡Borrado!", "La lectura ha sido eliminada.", "success");
       }
     });
   };
@@ -42,7 +43,7 @@ export default function PanelHistorico({
   return (
     <section className="panel history-panel">
       <div className="panel-header">
-        <h3>📋 Històric (Nivell Actual)</h3>
+        <h3>📋 Histórico (Nivel Actual)</h3>
         <span className="badge">{celdas.length} Items</span>
       </div>
 
@@ -51,9 +52,9 @@ export default function PanelHistorico({
           <thead>
             <tr>
               <th>#</th>
-              <th>Codi Peça</th>
-              <th>Estat</th>
-              <th style={{ textAlign: "center" }}>Acció</th>
+              <th>Código Pieza</th>
+              <th>Estado</th>
+              <th style={{ textAlign: "center" }}>Acción</th>
             </tr>
           </thead>
           <tbody>
@@ -64,14 +65,14 @@ export default function PanelHistorico({
                   className="empty-state"
                   style={{ textAlign: "center", padding: "20px" }}
                 >
-                  Esperant escanejos al nivell actual...
+                  Esperando escaneos en el nivel actual...
                 </td>
               </tr>
             ) : (
               [...celdas]
                 .map((celda, indexVisual) => {
                   const esUltimo = indexVisual === celdas.length - 1;
-                  // Número real per mostrar a l'usuari
+                  // Número real para mostrar al usuario
                   const numeroReal = offsetIndex + indexVisual + 1;
 
                   return (
@@ -79,7 +80,7 @@ export default function PanelHistorico({
                       key={celda.id}
                       className={esUltimo ? "row-highlight" : ""}
                     >
-                      {/* Mostrem el número real (Ex: 46, 47...) */}
+                      {/* Mostramos el número real (Ej: 46, 47...) */}
                       <td>{numeroReal}</td>
 
                       <td
@@ -100,7 +101,7 @@ export default function PanelHistorico({
                               color: "white",
                             }}
                           >
-                            ⚠️ REVISIÓ
+                            ⚠️ REVISIÓN
                           </span>
                         ) : (
                           <span className="tag tag-ok">OK</span>
@@ -111,7 +112,7 @@ export default function PanelHistorico({
                         <button
                           className="btn-trash"
                           onClick={() => handleBorrarClick(indexVisual)}
-                          title="Opcions d'esborrat"
+                          title="Opciones de borrado"
                         >
                           🗑️
                         </button>

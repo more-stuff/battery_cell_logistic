@@ -7,10 +7,12 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 import models, database
+import os
+from dotenv import load_dotenv
 
 # --- CONFIGURACIÓN ---
-# ¡CAMBIA ESTO EN PRODUCCIÓN!
-SECRET_KEY = "CLAVE_SUPER_SECRETA_INDESCIFRABLE_PARA_JWT"
+load_dotenv()
+SECRET_KEY = os.getenv("SECRET_KEY", "fallo_seguridad_clave_por_defecto")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 horas
 

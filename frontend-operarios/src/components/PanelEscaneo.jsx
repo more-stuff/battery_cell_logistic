@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import Swal from "sweetalert2";
 
 const audios = {
@@ -8,6 +8,7 @@ const audios = {
   quality_check: new Audio("/sounds/quality_check.mp3"),
   date_error: new Audio("/sounds/date_error.mp3"),
   level_complete: new Audio("/sounds/ok.mp3"),
+  defect_error: new Audio("/sounds/defect_error.mp3"),
 };
 
 // Opcional: Forzar precarga para que estén listos ya
@@ -24,6 +25,7 @@ export default function PanelEscaneo({
   numCeldas,
   limite,
 }) {
+  const [esDefectuoso, setEsDefectuoso] = useState(false);
   const inputRef = useRef(null);
   const estaLleno = numCeldas >= limite;
 
@@ -35,14 +37,31 @@ export default function PanelEscaneo({
     }, 100);
   }, []);
 
+  const reproducirSonido = (tipo) => {
+    const audioOriginal = audios[tipo];
+
+    if (audioOriginal) {
+      // cloneNode() es suficiente.
+      // El navegador limpiará la memoria automáticamente cuando termine el audio.
+      audioOriginal
+        .cloneNode()
+        .play()
+        .catch((e) => {
+          // Ignoramos errores si el usuario cambia de pestaña rápido
+          console.warn("Audio no reproducido:", e);
+        });
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+
     const res = onEscanear(); // Ejecutamos la lógica del hook
     const sonido = res.type || "short_error";
 
     // CASO 1: ERROR (Duplicado, fecha mal, etc.)
     if (res?.error) {
-      audios[sonido].play();
+      reproducirSonido(sonido);
       Swal.fire({
         icon: "error",
         title: "¡Error!",
@@ -55,7 +74,7 @@ export default function PanelEscaneo({
 
     // CASO 2: CONTROL DE CALIDAD
     if (res?.revision) {
-      audios["quality_check"].play();
+      reproducirSonido("quality_check");
 
       Swal.fire({
         title: "🛑 CONTROL DE CALIDAD",
@@ -94,13 +113,13 @@ export default function PanelEscaneo({
 
     // 👇 3. ALERTA DE NIVEL COMPLETADO
     if (res?.nivelCompletado) {
-      audios["level_complete"].play();
+      reproducirSonido("level_complete");
 
       Swal.fire({
         title: `🏁 NIVEL ${res.numeroNivel} COMPLETADO`,
         html: `
           <div style="font-size: 1.1rem; color: #34495e;">
-            <p>Has completado <b>${res.numeroPieza} piezas</b>.</p>
+            <p>Has completado <b>${res.numeroPieza - 1} piezas</b>.</p>
             <div style="
               background: #ebf5fb;
               border: 2px dashed #3498db;
@@ -129,9 +148,14 @@ export default function PanelEscaneo({
 
     // CASO 4: ÉXITO NORMAL (Sin revisión ni fin de nivel)
     else {
-      audios["ok"].play();
+      reproducirSonido("ok");
       setTimeout(() => inputRef.current?.focus(), 0);
     }
+  };
+
+  const handleFinalizar = () => {
+    // Pasamos el valor del checkbox al padre
+    onEnviar(esDefectuoso);
   };
 
   return (
@@ -167,7 +191,7 @@ export default function PanelEscaneo({
         <div className="action-area">
           <button
             className="btn-send"
-            onClick={onEnviar}
+            onClick={handleFinalizar}
             disabled={enviando || !estaLleno}
           >
             {enviando ? "ENVIANDO..." : "✅ FINALIZAR"}

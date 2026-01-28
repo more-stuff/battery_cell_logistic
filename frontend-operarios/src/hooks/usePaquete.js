@@ -43,19 +43,7 @@ export const usePaquete = (usuario) => {
     };
 
     cargarDatosBackend();
-  }, []);
-
-  useEffect(() => {
-    // Cargamos la lista negra al iniciar la sesión del operario
-    const cargarNegra = async () => {
-      try {
-        const lista = await obtenerDmcDefectuosos();
-        setBlacklist(new Set(lista)); // Usamos Set para que la búsqueda sea instantánea
-      } catch (e) {
-        console.error("Error cargando lista negra", e);
-      }
-    };
-    cargarNegra();
+    refrescarListaNegra();
   }, []);
 
   // gestion del localstorage
@@ -121,6 +109,16 @@ export const usePaquete = (usuario) => {
 
   // --- ACCIONES ---
 
+  const refrescarListaNegra = async () => {
+    try {
+      //console.log("🔄 Actualizando lista de defectuosos...");
+      const lista = await obtenerDmcDefectuosos();
+      setBlacklist(new Set(lista)); // Usamos Set para que la búsqueda sea instantánea
+    } catch (e) {
+      console.error("Error cargando lista negra", e);
+    }
+  };
+
   const agregarCelda = () => {
     // 1. VALIDACIONES BÁSICAS
     if (!huActual)
@@ -142,7 +140,7 @@ export const usePaquete = (usuario) => {
       return {
         error:
           "🚨 PIEZA DEFECTUOSA: Este código DMC está marcado como defectuoso de fábrica y no puede ser procesado, dejala a parte para escanearla en la caja de defectuosos",
-        type: "duplicate_error",
+        type: "defect_error",
       };
     }
 
@@ -254,16 +252,16 @@ export const usePaquete = (usuario) => {
     setIdGuardado(null); // Quita el modal de éxito
   };
 
-  const enviarDatos = async () => {
-    if (celdas.length < config.limite_paquete) {
+  const enviarDatos = async (is_defective) => {
+    if (celdas.length < config.limite_caja) {
       //if (celdas.length < 1) {
       // por seguridad pero no le va a dejar igualmente
-      const faltantes = config.limite_paquete - celdas.length;
+      const faltantes = config.limite_caja - celdas.length;
 
       Swal.fire({
         icon: "error",
         title: "⛔ CAJA INCOMPLETA",
-        text: `No se puede cerrar la caja. Faltan ${faltantes} piezas para llegar a ${config.limite_paquete}.`,
+        text: `No se puede cerrar la caja. Faltan ${faltantes} piezas para llegar a ${config.limite_caja}.`,
         confirmButtonColor: "#d33",
         confirmButtonText: "Entendido, seguir escaneando",
       });
@@ -278,6 +276,7 @@ export const usePaquete = (usuario) => {
         usuario_id: usuario,
         fecha_inicio: fechaInicio || new Date().toISOString(),
         fecha_fin: new Date().toISOString(),
+        is_defective: is_defective,
         celdas: celdas.map((c) => ({
           dmc_code: c.codigo_celda,
           fecha_caducidad: c.fecha_caducidad,
@@ -291,6 +290,8 @@ export const usePaquete = (usuario) => {
       // ÉXITO: Guardamos el ID para mostrarlo en el modal
       setIdGuardado(respuesta.id_temporal);
 
+      await refrescarListaNegra();
+
       // Reset
       setCeldas([]);
       setFechaInicio(null);
@@ -298,12 +299,38 @@ export const usePaquete = (usuario) => {
       localStorage.removeItem("paquete_en_curso");
       localStorage.removeItem("fecha_inicio_paquete");
     } catch (error) {
-      Swal.fire({
-        title: "Error de Servidor",
-        text: "No se pudieron enviar los datos. Inténtalo de nuevo.",
-        icon: "error",
-      });
-      console.error(error);
+      if (error.response && error.response.status === 409) {
+        // 409 = CONFLICTO (Duplicados o Lista Negra detectados por el backend)
+
+        const mensajeError =
+          error.response.data.detail || "Conflicto de datos.";
+
+        // Reproducir sonido de error si tienes acceso a los audios, o solo la alerta
+        // const audio = new Audio("/sounds/defect_error.mp3"); audio.play();
+
+        Swal.fire({
+          title: "⛔ NO SE PUEDE CERRAR",
+          html: `
+          <div style="text-align: left;">
+            <p>Se han encontrado errores críticos:</p>
+            <div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 5px; border: 1px solid #ef9a9a; font-family: monospace; white-space: pre-wrap;">
+              ${mensajeError}
+            </div>
+          </div>
+        `,
+          icon: "error",
+          confirmButtonText: "Entendido, voy a revisar",
+          confirmButtonColor: "#d33",
+          width: 600,
+        });
+      } else {
+        // Error 500 u otros
+        Swal.fire({
+          title: "Error de Servidor",
+          text: "Hubo un problema de conexión. Inténtalo de nuevo.",
+          icon: "error",
+        });
+      }
     } finally {
       setEnviando(false);
     }

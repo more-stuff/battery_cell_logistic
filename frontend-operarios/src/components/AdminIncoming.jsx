@@ -20,6 +20,13 @@ export const AdminIncoming = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handleKeyDown = (e) => {
+    // Si pulsan Enter en el HU, pasamos al siguiente campo en vez de enviar
+    if (e.key === "Enter") {
+      e.preventDefault();
+      fechaRef.current?.focus(); // Mueve el cursor a la fecha
+    }
+  };
   // ENVÍO DEL FORMULARIO
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -94,6 +101,7 @@ export const AdminIncoming = () => {
               name="hu_entrada"
               value={formData.hu_entrada}
               onChange={handleChange}
+              onKeyDown={handleKeyDown}
               placeholder="Escanear código..."
               style={{
                 ...estilos.input,
