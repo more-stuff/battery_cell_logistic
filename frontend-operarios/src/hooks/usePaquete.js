@@ -214,7 +214,7 @@ export const usePaquete = (usuario) => {
     } else if (config.alerta_cada > 0) {
       // MODO B: "Intervalos" (Lo que tenías antes)
       // Salta cada X piezas (ej: 15, 30, 45...)
-      requiereRevision = totalPiezas + (1 % config.alerta_cada) === 0;
+      requiereRevision = total_celdas + (1 % config.alerta_cada) === 0;
     }
 
     const nivelCompletado =

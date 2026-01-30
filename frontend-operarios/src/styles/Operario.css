@@ -94,11 +94,23 @@ body {
 /* GRID PRINCIPAL - AHORA OCUPA TODO EL ESPACIO RESTANTE */
 .main-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr; /* 50% Izquierda - 50% Derecha */
+  /* 👇 CAMBIO AQUÍ: */
+  /* Antes era: 1fr 1fr (mitad y mitad) */
+  /* Ahora es: 350px (fijo para escaneo) y 1fr (el resto para la tabla) */
+  grid-template-columns: 0.4fr 0.7fr;
+
   gap: 20px;
   padding: 20px;
-  height: calc(100vh - 70px); /* Altura total menos el header */
+  height: calc(100vh - 70px);
   box-sizing: border-box;
+}
+
+/* Opcional: Para pantallas muy pequeñas (tablets verticales), que se ponga uno debajo de otro */
+@media (max-width: 768px) {
+  .main-grid {
+    grid-template-columns: 1fr; /* Una sola columna */
+    grid-template-rows: auto 1fr;
+  }
 }
 
 /* PANELES */

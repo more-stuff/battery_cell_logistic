@@ -210,7 +210,8 @@ export const AdminConfig = () => {
             />
           </div>
           <small style={estilos.help}>
-            El archivo debe tener una cabecera llamada <b>DMC</b>.
+            El archivo ha de ser un csv con una unica columna llamada <b>DMC</b>
+            .
           </small>
         </div>
       </div>

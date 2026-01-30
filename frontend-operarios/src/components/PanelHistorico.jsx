@@ -8,119 +8,186 @@ export default function PanelHistorico({
   offsetIndex,
 }) {
   const handleBorrarClick = (indexVisual) => {
-    // Calculamos el índice real dentro del array global
     const indexReal = offsetIndex + indexVisual;
 
     Swal.fire({
-      title: "¿Qué quieres hacer?",
-      text: `Estás en la pieza #${indexReal + 1}`,
-      icon: "question",
+      title: "¿Borrar?",
+      text: `Pieza #${indexReal + 1}`,
+      icon: "warning",
       showCancelButton: true,
       showDenyButton: true,
-      confirmButtonColor: "#d33", // Rojo para acción fuerte
-      denyButtonColor: "#f39c12", // Naranja para acción suave
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: "🧨 Borrar desde aquí hasta el final",
-      denyButtonText: "🗑️ Borrar solo esta",
+      confirmButtonColor: "#d33",
+      denyButtonColor: "#f39c12",
+      confirmButtonText: "🧨 Borrar siguientes",
+      denyButtonText: "🗑️ Borrar esta",
       cancelButtonText: "Cancelar",
     }).then((result) => {
       if (result.isConfirmed) {
-        // Opción 1: Borrar en masa
         onBorrarDesde(indexReal);
-        Swal.fire(
-          "¡Limpiado!",
-          "Se han borrado las piezas posteriores.",
-          "success",
-        );
       } else if (result.isDenied) {
-        // Opción 2: Borrar solo una
         onBorrar(indexReal);
-        Swal.fire("¡Borrado!", "La lectura ha sido eliminada.", "success");
       }
     });
   };
 
   return (
-    <section className="panel history-panel">
+    <section
+      className="panel historico-panel"
+      style={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        border: "none",
+        boxShadow: "none",
+      }}
+    >
       <div className="panel-header">
-        <h3>📋 Histórico (Nivel Actual)</h3>
-        <span className="badge">{celdas.length} Items</span>
+        <h3>📋 Historial de Caja</h3>
+        <span className="count-badge">{celdas.length} pzs</span>
       </div>
 
-      <div className="table-container">
-        <table>
-          <thead>
+      <div className="table-container" style={{ flex: 1, overflowY: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead
+            style={{
+              position: "sticky",
+              top: 0,
+              zIndex: 5,
+              background: "#f8f9fa",
+            }}
+          >
             <tr>
-              <th>#</th>
-              <th>Código Pieza</th>
-              <th>Estado</th>
-              <th style={{ textAlign: "center" }}>Acción</th>
+              <th style={{ padding: "10px", borderBottom: "2px solid #ddd" }}>
+                #
+              </th>
+              {/* 👇 NUEVA COLUMNA */}
+              <th style={{ padding: "10px", borderBottom: "2px solid #ddd" }}>
+                HU / CAJA
+              </th>
+              <th style={{ padding: "10px", borderBottom: "2px solid #ddd" }}>
+                CÓDIGO
+              </th>
+              <th
+                style={{
+                  padding: "10px",
+                  borderBottom: "2px solid #ddd",
+                  textAlign: "center",
+                }}
+              >
+                ESTADO
+              </th>
+              <th
+                style={{
+                  padding: "10px",
+                  borderBottom: "2px solid #ddd",
+                  textAlign: "center",
+                }}
+              >
+                ACCIÓN
+              </th>
             </tr>
           </thead>
           <tbody>
             {celdas.length === 0 ? (
               <tr>
                 <td
-                  colSpan="4"
-                  className="empty-state"
-                  style={{ textAlign: "center", padding: "20px" }}
+                  colSpan="5"
+                  style={{
+                    padding: "30px",
+                    textAlign: "center",
+                    color: "#aaa",
+                  }}
                 >
-                  Esperando escaneos en el nivel actual...
+                  --- Caja vacía ---
                 </td>
               </tr>
             ) : (
-              [...celdas]
-                .map((celda, indexVisual) => {
-                  const esUltimo = indexVisual === celdas.length - 1;
-                  // Número real para mostrar al usuario
-                  const numeroReal = offsetIndex + indexVisual + 1;
+              // Hacemos copia del array para no mutar el original al invertir
+              [...celdas].reverse().map((celda, index) => {
+                // Cálculo del número real (porque estamos invirtiendo la vista)
+                const indexOriginal = celdas.length - 1 - index;
+                const numeroPieza = offsetIndex + indexOriginal + 1;
 
-                  return (
-                    <tr
-                      key={celda.id}
-                      className={esUltimo ? "row-highlight" : ""}
+                return (
+                  <tr
+                    key={index}
+                    style={{
+                      borderBottom: "1px solid #eee",
+                      backgroundColor: celda.es_revision
+                        ? "#fff5f5"
+                        : "transparent",
+                    }}
+                  >
+                    <td style={{ padding: "10px", color: "#888" }}>
+                      {numeroPieza}
+                    </td>
+
+                    {/* 👇 DATO DE LA COLUMNA HU */}
+                    <td
+                      style={{
+                        padding: "10px",
+                        fontWeight: "bold",
+                        color: "#2980b9",
+                        fontFamily: "monospace",
+                      }}
                     >
-                      {/* Mostramos el número real (Ej: 46, 47...) */}
-                      <td>{numeroReal}</td>
+                      {celda.hu_asociado || "---"}
+                    </td>
 
-                      <td
-                        className="font-mono"
+                    <td
+                      style={{
+                        padding: "10px",
+                        fontFamily: "monospace",
+                        fontSize: "1.1em",
+                      }}
+                    >
+                      {celda.codigo_celda}
+                    </td>
+
+                    <td style={{ textAlign: "center" }}>
+                      {celda.es_revision ? (
+                        <span
+                          style={{
+                            background: "#e74c3c",
+                            color: "white",
+                            padding: "3px 8px",
+                            borderRadius: "4px",
+                            fontSize: "0.8em",
+                          }}
+                        >
+                          REVISIÓN
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            background: "#2ecc71",
+                            color: "white",
+                            padding: "3px 8px",
+                            borderRadius: "4px",
+                            fontSize: "0.8em",
+                          }}
+                        >
+                          OK
+                        </span>
+                      )}
+                    </td>
+
+                    <td style={{ textAlign: "center" }}>
+                      <button
+                        onClick={() => handleBorrarClick(indexOriginal)}
                         style={{
-                          fontWeight: celda.es_revision ? "bold" : "normal",
+                          border: "none",
+                          background: "none",
+                          cursor: "pointer",
+                          fontSize: "1.2em",
                         }}
                       >
-                        {celda.codigo_celda}
-                      </td>
-
-                      <td style={{ textAlign: "center" }}>
-                        {celda.es_revision ? (
-                          <span
-                            className="tag tag-review"
-                            style={{
-                              backgroundColor: "#ef4444",
-                              color: "white",
-                            }}
-                          >
-                            ⚠️ REVISIÓN
-                          </span>
-                        ) : (
-                          <span className="tag tag-ok">OK</span>
-                        )}
-                      </td>
-
-                      <td style={{ textAlign: "center" }}>
-                        <button
-                          className="btn-trash"
-                          onClick={() => handleBorrarClick(indexVisual)}
-                          title="Opciones de borrado"
-                        >
-                          🗑️
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-                .reverse()
+                        🗑️
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
