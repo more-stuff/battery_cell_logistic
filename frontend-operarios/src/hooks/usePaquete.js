@@ -269,7 +269,10 @@ export const usePaquete = (usuario) => {
   };
 
   const enviarDatos = async (is_defective) => {
-    if (celdas.length < config.limite_caja) {
+    if (
+      (celdas.length < config.limite_caja && !is_defective) ||
+      (celdas.length < config.limite_defectuosa && is_defective)
+    ) {
       //if (celdas.length < 1) {
       // por seguridad pero no le va a dejar igualmente
       const faltantes = config.limite_caja - celdas.length;
