@@ -28,6 +28,11 @@ const COLUMNAS_DISPONIBLES = [
   { id: "hu_silena", label: "HU Silena", group: "outbound_area" },
   { id: "ubicacion", label: "Ubicación", group: "outbound_area" },
   { id: "fecha_almacenamiento", label: "F. Almacén", group: "outbound_area" },
+  {
+    id: "is_defective",
+    label: "Celda defectuosa/valida",
+    group: "outbound_area",
+  },
 
   { id: "n_salida", label: "Nº Salida", group: "powerco_area" },
   { id: "handling_unit", label: "Handling Unit", group: "powerco_area" },
@@ -43,7 +48,10 @@ export const AdminConsulta = () => {
     fecha_caducidad: "",
     fecha_inicio: "",
     fecha_fin: "",
+    is_defective: "",
+    id_temporal: "",
   });
+
   const [colsSeleccionadas, setColsSeleccionadas] = useState(
     COLUMNAS_DISPONIBLES.map((c) => c.id),
   );
@@ -89,6 +97,8 @@ export const AdminConsulta = () => {
       fecha_caducidad: "",
       fecha_inicio: "",
       fecha_fin: "",
+      is_defective: "",
+      id_temporal: "",
     });
     setResultados([]);
   };
@@ -134,8 +144,6 @@ export const AdminConsulta = () => {
       setLoadingCSV(false);
     }
   };
-
-  console.log(resultados);
 
   // --- RENDER ---
   return (

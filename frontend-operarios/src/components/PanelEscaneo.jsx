@@ -24,10 +24,12 @@ export default function PanelEscaneo({
   enviando,
   numCeldas,
   limite,
+  celdas,
+  modoDefectuoso = false, // <--- 1. propiedad de si estamos en modo defecuoso por defecto false
 }) {
-  const [esDefectuoso, setEsDefectuoso] = useState(false);
   const inputRef = useRef(null);
   const estaLleno = numCeldas >= limite;
+  const [bloqueado, setBloqueado] = useState(false);
 
   // Esto hace que solo se ejecute UNA vez al cargar la página
   useEffect(() => {
@@ -56,7 +58,7 @@ export default function PanelEscaneo({
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const res = onEscanear(); // Ejecutamos la lógica del hook
+    const res = onEscanear(modoDefectuoso); // Ejecutamos la lógica del hook
     const sonido = res.type || "short_error";
 
     // CASO 1: ERROR (Duplicado, fecha mal, etc.)
@@ -66,7 +68,7 @@ export default function PanelEscaneo({
         icon: "error",
         title: "¡Error!",
         text: res.error,
-        timer: 2000,
+        timer: 2200,
         showConfirmButton: false,
       });
       return;
@@ -74,6 +76,7 @@ export default function PanelEscaneo({
 
     // CASO 2: CONTROL DE CALIDAD
     if (res?.revision) {
+      setBloqueado(true);
       reproducirSonido("quality_check");
 
       Swal.fire({
@@ -106,6 +109,7 @@ export default function PanelEscaneo({
           no-repeat
         `,
       }).then(() => {
+        setBloqueado(false);
         setTimeout(() => inputRef.current?.focus(), 100);
       });
       return; // Importante: salir para no ejecutar lógica de nivel o éxito normal
@@ -128,7 +132,7 @@ export default function PanelEscaneo({
               margin: 15px 0;
             ">
               <h3 style="margin:0; color: #2980b9;">⚠️ ACCIÓN REQUERIDA</h3>
-              <p style="margin: 5px 0 0 0; font-weight: bold;">Colocar cartón separador</p>
+              <p style="margin: 5px 0 0 0; font-weight: bold;">Colocar cartón separador en la orientación correcta</p>
             </div>
           </div>
         `,
@@ -149,19 +153,89 @@ export default function PanelEscaneo({
     // CASO 4: ÉXITO NORMAL (Sin revisión ni fin de nivel)
     else {
       reproducirSonido("ok");
+      if (modoDefectuoso) {
+        setHu("");
+      }
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
 
   const handleFinalizar = () => {
-    // Pasamos el valor del checkbox al padre
-    onEnviar(esDefectuoso);
+    console.log(celdas);
+    // calculo de hu diferentes
+    const husUnicos = [
+      ...new Set(celdas.map((c) => c.hu_asociado).filter((h) => h)),
+    ];
+
+    const htmlHus =
+      husUnicos.length > 0
+        ? husUnicos
+            .map(
+              (h) =>
+                `<span style="
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.9em;
+            margin: 3px;
+            display: inline-block;
+            font-weight: bold;
+            border: 1px solid #90caf9;">
+            📦 ${h}
+           </span>`,
+            )
+            .join("")
+        : '<span style="color: #999; font-style: italic;">Sin HUs registrados</span>';
+
+    // 👇 CONFIRMACIÓN ANTES DE ENVIAR
+    Swal.fire({
+      title: "¿Cerrar y Finalizar Caja?",
+      html: `
+        <div style="text-align: left; margin-top: 10px;">
+           <p style="margin-bottom: 15px; font-size: 1.1em; color: #333;">
+             Se van a registrar <b>${celdas.length} piezas</b>.
+           </p>
+
+           <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+             <label style="display: block; font-size: 0.8em; color: #666; font-weight: bold; margin-bottom: 8px; text-transform: uppercase;">
+               Fuentes detectadas (${husUnicos.length}):
+             </label>
+             <div style="line-height: 1.6;">
+               ${htmlHus}
+             </div>
+           </div>
+        </div>
+      `,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#27ae60",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Sí, enviar caja",
+      cancelButtonText: "Cancelar",
+      width: 500,
+    }).then((result) => {
+      if (result.isConfirmed) {
+        onEnviar(modoDefectuoso);
+      }
+    });
   };
+
+  const headerClass = modoDefectuoso
+    ? "panel-header header-defectuoso"
+    : "panel-header";
 
   return (
     <section className="panel scan-panel">
-      <div className="panel-header">
-        <h3>📥 Entrada de Datos</h3>
+      <div
+        className={headerClass}
+        style={modoDefectuoso ? { backgroundColor: "#c0392b" } : {}}
+      >
+        <h3>
+          {modoDefectuoso
+            ? "🗑️ Escaneo de Datos defectuosos"
+            : "📥 Entrada de Datos"}
+        </h3>
       </div>
       <div className="panel-body">
         <div className="form-group">
@@ -182,6 +256,7 @@ export default function PanelEscaneo({
               className="input-big input-scan"
               value={celda}
               onChange={(e) => setCelda(e.target.value)}
+              disabled={bloqueado}
               placeholder="Escanear Pieza..."
               autoFocus
             />
@@ -193,8 +268,13 @@ export default function PanelEscaneo({
             className="btn-send"
             onClick={handleFinalizar}
             disabled={enviando || !estaLleno}
+            style={modoDefectuoso ? { backgroundColor: "#c0392b" } : {}}
           >
-            {enviando ? "ENVIANDO..." : "✅ FINALIZAR"}
+            {enviando
+              ? "ENVIANDO..."
+              : modoDefectuoso
+                ? "⚠️ FINALIZAR SCRAP"
+                : "✅ FINALIZAR"}
           </button>
         </div>
       </div>

@@ -10,6 +10,8 @@ export const usePaquete = (usuario) => {
   const [config, setConfig] = useState({
     alerta_cada: 15, // Valor por defecto si falla la red
     limite_caja: 180, // Valor por defecto
+    limite_defectuosa: 180,
+    len_dmc: 87,
     level_size: 45,
   });
 
@@ -31,6 +33,8 @@ export const usePaquete = (usuario) => {
         setConfig({
           alerta_cada: Number(datos.alerta_cada),
           limite_caja: Number(datos.limite_caja),
+          limite_defectuosa: Number(datos.limite_defectuosa),
+          len_dmc: Number(datos.len_dmc),
           level_size: 45,
         });
         console.log("✅ Configuración cargada:", datos);
@@ -119,7 +123,7 @@ export const usePaquete = (usuario) => {
     }
   };
 
-  const agregarCelda = () => {
+  const agregarCelda = (is_defective) => {
     // 1. VALIDACIONES BÁSICAS
     if (!huActual)
       return {
@@ -127,19 +131,31 @@ export const usePaquete = (usuario) => {
         type: "short_error",
       };
     if (!celdaInput) return;
-    if (celdaInput.length < 6)
+    if (celdaInput.length < config.len_dmc)
       return {
         error: "⚠️ Código muy corto (Faltan datos).",
         type: "short_error",
       };
-    if (celdas.length >= config.limite_caja)
+    if (
+      (celdas.length >= config.limite_caja && !is_defective) ||
+      (celdas.length >= config.limite_defectuosa && is_defective)
+    )
       return { error: "📦 Paquete lleno.", type: "duplicate_error" };
 
-    if (blacklist.has(celdaInput)) {
+    if (blacklist.has(celdaInput) && !is_defective) {
       setCeldaInput("");
       return {
         error:
           "🚨 PIEZA DEFECTUOSA: Este código DMC está marcado como defectuoso de fábrica y no puede ser procesado, dejala a parte para escanearla en la caja de defectuosos",
+        type: "defect_error",
+      };
+    }
+
+    if (!blacklist.has(celdaInput) && is_defective) {
+      setCeldaInput("");
+      return {
+        error:
+          "🚨 PIEZA no DEFECTUOSA: Este código DMC no está marcado como defectuoso de fábrica y no puede ser procesado en esta pantalla, dejala a parte para escanearla en la caja de piezas validas",
         type: "defect_error",
       };
     }
@@ -214,7 +230,7 @@ export const usePaquete = (usuario) => {
     } else if (config.alerta_cada > 0) {
       // MODO B: "Intervalos" (Lo que tenías antes)
       // Salta cada X piezas (ej: 15, 30, 45...)
-      requiereRevision = total_celdas + (1 % config.alerta_cada) === 0;
+      requiereRevision = (total_celdas + 1) % config.alerta_cada === 0;
     }
 
     const nivelCompletado =
@@ -352,6 +368,7 @@ export const usePaquete = (usuario) => {
     borrarDesde,
     enviarDatos,
     limite: config.limite_caja,
+    limite_defectuosas: config.limite_defectuosa,
     level_size: config.level_size,
   };
 };

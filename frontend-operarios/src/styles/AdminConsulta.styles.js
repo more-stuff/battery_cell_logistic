@@ -218,4 +218,41 @@ export const estilos = {
     fontSize: "0.75rem",
     fontWeight: "600",
   },
+  buttonGroup: {
+    display: "flex",
+    width: "100%",
+    height: "42px", // Misma altura que tus inputs
+    borderRadius: "6px",
+    overflow: "hidden",
+    border: "1px solid #cbd5e1", // Color borde gris suave
+    backgroundColor: "white",
+  },
+  btnSegment: {
+    flex: 1, // Ocupan exactamente 33% cada uno
+    border: "none",
+    backgroundColor: "white",
+    cursor: "pointer",
+    fontSize: "0.9rem",
+    fontWeight: "600",
+    color: "#64748b",
+    transition: "all 0.2s ease",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "5px",
+    padding: "0",
+  },
+  // Estilos cuando están activos
+  activeTodos: {
+    backgroundColor: "#3b82f6", // Azul
+    color: "white",
+  },
+  activeOK: {
+    backgroundColor: "#22c55e", // Verde
+    color: "white",
+  },
+  activeNOK: {
+    backgroundColor: "#ef4444", // Rojo
+    color: "white",
+  },
 };

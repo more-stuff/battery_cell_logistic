@@ -28,6 +28,19 @@ def initialize_config():
             print("⚙️ Creando configuración por defecto: limite_caja = 180")
             db.add(models.Configuracion(clave="limite_caja", valor="180"))
 
+        # checquear limite de las defectuosas
+        if (
+            not db.query(models.Configuracion)
+            .filter_by(clave="limite_defectuosa")
+            .first()
+        ):
+            print("⚙️ Creando configuración por defecto: limite_defectuosa = 180")
+            db.add(models.Configuracion(clave="limite_defectuosa", valor="180"))
+
+        if not db.query(models.Configuracion).filter_by(clave="len_dmc").first():
+            print("⚙️ Creando configuración por defecto: len_dmc = 86")
+            db.add(models.Configuracion(clave="len_dmc", valor="87"))
+
         db.commit()
     except Exception as e:
         print(f"Error inicializando config: {e}")

@@ -49,12 +49,11 @@ export const AdminTabla = ({
             {resultados.map((row, index) => {
               // 👇 1. DETECTAMOS SI ES REVISIÓN
               // (Comprobamos ambas claves por seguridad: 'calidad' o 'estado_calidad')
-              const esRevision =
-                row.calidad === "REVISION" || row.estado_calidad === "REVISION";
+              const esDefectuosa = row.is_defective;
 
               // 👇 2. DEFINIMOS EL COLOR DE FONDO
               let bgColor = index % 2 === 0 ? "#ffffff" : "#f9fafb"; // Default alternado
-              if (esRevision) bgColor = "#fee2e2"; // Rojo suave si es revisión
+              if (esDefectuosa) bgColor = "#fee2e2"; // Rojo suave si es revisión
 
               return (
                 <tr
@@ -63,7 +62,7 @@ export const AdminTabla = ({
                     backgroundColor: bgColor,
                     borderBottom: "1px solid #e5e7eb",
                     // 👇 3. BORDE ROJO LATERAL SI ES REVISIÓN
-                    borderLeft: esRevision ? "5px solid #ef4444" : "none",
+                    borderLeft: esDefectuosa ? "5px solid #ef4444" : "none",
                   }}
                 >
                   {columnasActivas.map((col) => (

@@ -5,12 +5,14 @@ import { BrowserRouter, Routes, Route } from "react-router-dom"; // npm install 
 import { Carretillero } from "./components/Carretillero.jsx";
 import { AdminDashboard } from "./components/AdminDashboard.jsx";
 import Operario from "./components/Operario.jsx";
+import OperarioDefectuoso from "./components/OperarioDefectuoso.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Operario />} />
+        <Route path="/defectuosas" element={<OperarioDefectuoso />} />
         <Route path="/carretilla" element={<Carretillero />} />
         <Route path="/administrative" element={<AdminDashboard />} />
       </Routes>

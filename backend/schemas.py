@@ -69,6 +69,8 @@ class ConfigInput(BaseModel):
 class ConfigResponse(BaseModel):
     alerta_cada: int
     limite_caja: int
+    limite_defectuosa: int
+    len_dmc: int
 
 
 class AdminCreate(BaseModel):

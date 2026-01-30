@@ -1,6 +1,15 @@
 import { estilos } from "../../styles/AdminConsulta.styles";
 
 export const AdminFiltros = ({ filtros, onChange }) => {
+  const cambiarEstado = (valor) => {
+    onChange({
+      target: {
+        name: "is_defective",
+        value: valor,
+      },
+    });
+  };
+
   return (
     <div style={estilos.gridFiltros}>
       <div style={estilos.columnaGrid}>
@@ -20,6 +29,7 @@ export const AdminFiltros = ({ filtros, onChange }) => {
           style={estilos.inputModern}
           placeholder="Ej: SUP-123"
         />
+
         <label style={estilos.labelModern}>HU Salida / Caja ID</label>
         <input
           name="hu_salida"
@@ -27,6 +37,15 @@ export const AdminFiltros = ({ filtros, onChange }) => {
           onChange={onChange}
           style={estilos.inputModern}
           placeholder="Ej: SIL-999"
+        />
+
+        <label style={estilos.labelModern}>ID temporal</label>
+        <input
+          name="id_temporal"
+          value={filtros.id_temporal}
+          onChange={onChange}
+          style={estilos.inputModern}
+          placeholder="Ej: TEMP-4953"
         />
       </div>
 
@@ -55,6 +74,46 @@ export const AdminFiltros = ({ filtros, onChange }) => {
           onChange={onChange}
           style={estilos.inputModern}
         />
+        <label style={estilos.labelModern}>Estado / Calidad</label>
+        <div style={estilos.buttonGroup}>
+          {/* BOTÓN 1: TODOS */}
+          <button
+            type="button"
+            onClick={() => cambiarEstado("")}
+            style={{
+              ...estilos.btnSegment,
+              ...(filtros.is_defective === "" ? estilos.activeTodos : {}),
+              borderRight: "1px solid #ccc",
+            }}
+          >
+            📦 Todas
+          </button>
+
+          {/* BOTÓN 2: SOLO OK */}
+          <button
+            type="button"
+            onClick={() => cambiarEstado("false")}
+            style={{
+              ...estilos.btnSegment,
+              ...(filtros.is_defective === "false" ? estilos.activeOK : {}),
+              borderRight: "1px solid #ccc",
+            }}
+          >
+            ✅ Válidas
+          </button>
+
+          {/* BOTÓN 3: DEFECTUOSOS */}
+          <button
+            type="button"
+            onClick={() => cambiarEstado("true")}
+            style={{
+              ...estilos.btnSegment,
+              ...(filtros.is_defective === "true" ? estilos.activeNOK : {}),
+            }}
+          >
+            ❌ Defectuosas
+          </button>
+        </div>
       </div>
     </div>
   );

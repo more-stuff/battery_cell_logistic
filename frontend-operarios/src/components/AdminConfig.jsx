@@ -11,6 +11,8 @@ export const AdminConfig = () => {
   const [config, setConfig] = useState({
     alerta_cada: "",
     limite_caja: "",
+    limite_defectuosa: "",
+    len_dmc: "",
   });
 
   const [loading, setLoading] = useState(true);
@@ -26,6 +28,8 @@ export const AdminConfig = () => {
       setConfig({
         alerta_cada: datos.alerta_cada,
         limite_caja: datos.limite_caja,
+        limite_defectuosa: datos.limite_defectuosa,
+        len_dmc: datos.len_dmc,
       });
     } catch (error) {
       console.error(error);
@@ -135,6 +139,56 @@ export const AdminConfig = () => {
           </small>
         </div>
 
+        {/* CONFIG: LONGITUD DMC*/}
+        <div style={estilos.item}>
+          <label style={estilos.label}>📦 Longitud de los codigos DMC</label>
+          <div style={estilos.inputGroup}>
+            <input
+              type="number"
+              name="len_dmc"
+              value={config.len_dmc}
+              onChange={handleChange}
+              style={estilos.input}
+            />
+            <button
+              onClick={() => handleGuardar("len_dmc")}
+              style={estilos.btnGuardar}
+            >
+              Guardar
+            </button>
+          </div>
+          <small style={estilos.help}>
+            El operario se le exigirá que los DMC de las celdas tengan esta
+            longitud
+          </small>
+        </div>
+
+        {/* CONFIG: LONGITUD CAJA DEFECTUOSA*/}
+        <div style={estilos.item}>
+          <label style={estilos.label}>
+            📦 Longitud de las cajas con celdas de DMC defectuosos
+          </label>
+          <div style={estilos.inputGroup}>
+            <input
+              type="number"
+              name="limite_defectuosa"
+              value={config.limite_defectuosa}
+              onChange={handleChange}
+              style={estilos.input}
+            />
+            <button
+              onClick={() => handleGuardar("limite_defectuosa")}
+              style={estilos.btnGuardar}
+            >
+              Guardar
+            </button>
+          </div>
+          <small style={estilos.help}>
+            El operario verá la caja de defectuosas llena al llegar a este
+            número.
+          </small>
+        </div>
+
         {/* CONFIG 2: FRECUENCIA DE REVISIÓN */}
         <div style={estilos.item}>
           <label style={estilos.label}>⚠️ Estrategia de Calidad</label>
@@ -226,7 +280,7 @@ const estilos = {
     padding: "30px",
     borderRadius: "12px",
     boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-    maxWidth: "800px",
+    maxWidth: "900px",
     margin: "20px auto",
     fontFamily: "Segoe UI, sans-serif",
   },

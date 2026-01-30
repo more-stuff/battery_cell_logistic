@@ -169,7 +169,15 @@ def registrar_salida(
 
 # --- FUNCIÓN AUXILIAR PARA FILTROS ---
 def aplicar_filtros(
-    query, dmc, hu_entrada, hu_salida, fecha_inicio, fecha_fin, fecha_caducidad
+    query,
+    dmc,
+    hu_entrada,
+    hu_salida,
+    fecha_inicio,
+    fecha_fin,
+    fecha_caducidad,
+    is_defective,
+    id_temporal,
 ):
 
     # 1. Join obligatorio: Celda siempre pertenece a una Caja
@@ -196,6 +204,9 @@ def aplicar_filtros(
         query = query.filter(
             models.CajaReempaque.hu_silena_outbound.contains(hu_salida)
         )
+    if id_temporal:
+        # Puede ser el HU Silena o el HU Embarque Final
+        query = query.filter(models.CajaReempaque.id_temporal.contains(id_temporal))
 
     if fecha_caducidad:
         hoy = date.today()
@@ -217,6 +228,9 @@ def aplicar_filtros(
         query = query.filter(
             models.CajaReempaque.fecha_fin_reempaque.between(fecha_inicio, fecha_fin)
         )
+
+    if is_defective is not None:
+        query = query.filter(models.CajaReempaque.is_defective == is_defective)
 
     return query
 
@@ -241,6 +255,7 @@ def construir_fila(celda, caja, palet):
         "caducidad_celda": celda.fecha_caducidad,
         "caducidad_antigua": celda.fecha_caducidad,
         "fecha_almacenamiento": getattr(caja, "fecha_almacenamiento", None),
+        "is_defective": getattr(caja, "is_defective", False),
         "hu_silena": getattr(caja, "hu_silena_outbound", "") or "",
         "ubicacion": getattr(caja, "ubicacion_estanteria", "") or "",
         "n_salida": getattr(caja, "numero_salida_delivery", "") or "",
@@ -259,6 +274,8 @@ def buscar_preview(
     fecha_inicio: Optional[datetime] = None,
     fecha_fin: Optional[datetime] = None,
     fecha_caducidad: Optional[date] = None,
+    is_defective: Optional[bool] = None,
+    id_temporal: Optional[str] = None,
     # NUEVO PARÁMETRO: Recibimos las columnas separadas por coma
     cols: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -267,7 +284,15 @@ def buscar_preview(
 ):
     base_query = db.query(models.Celda)
     query = aplicar_filtros(
-        base_query, dmc, hu_entrada, hu_salida, fecha_inicio, fecha_fin, fecha_caducidad
+        base_query,
+        dmc,
+        hu_entrada,
+        hu_salida,
+        fecha_inicio,
+        fecha_fin,
+        fecha_caducidad,
+        is_defective,
+        id_temporal,
     )
     resultados = query.limit(180).all()
 
@@ -300,7 +325,10 @@ def exportar_csv(
     fecha_inicio: Optional[datetime] = None,
     fecha_fin: Optional[datetime] = None,
     fecha_caducidad: Optional[date] = None,
-    cols: Optional[str] = Query(None),  # <--- NUEVO
+    is_defective: Optional[bool] = None,
+    id_temporal: Optional[str] = None,
+    # Selecion de columnas
+    cols: Optional[str] = Query(None),
     labels: Optional[str] = Query(
         None
     ),  # <--- NUEVO (Para las cabeceras bonitas del Excel)
@@ -312,7 +340,15 @@ def exportar_csv(
     )
 
     query = aplicar_filtros(
-        base_query, dmc, hu_entrada, hu_salida, fecha_inicio, fecha_fin, fecha_caducidad
+        base_query,
+        dmc,
+        hu_entrada,
+        hu_salida,
+        fecha_inicio,
+        fecha_fin,
+        fecha_caducidad,
+        is_defective,
+        id_temporal,
     )
 
     # 1. PREPARAR COLUMNAS
@@ -365,11 +401,17 @@ def obtener_configuracion(
     # Buscamos los valores en la DB
     conf_alerta = db.query(models.Configuracion).filter_by(clave="alerta_cada").first()
     conf_limite = db.query(models.Configuracion).filter_by(clave="limite_caja").first()
+    limite_defectuosa = (
+        db.query(models.Configuracion).filter_by(clave="limite_defectuosa").first()
+    )
+    len_dmc = db.query(models.Configuracion).filter_by(clave="len_dmc").first()
 
     # Si no existen, devolvemos valores por defecto (Safety check)
     return {
         "alerta_cada": int(conf_alerta.valor) if conf_alerta else 15,
         "limite_caja": int(conf_limite.valor) if conf_limite else 180,
+        "limite_defectuosa": int(limite_defectuosa.valor) if limite_defectuosa else 180,
+        "len_dmc": int(len_dmc.valor) if len_dmc else 87,
     }
 
 
