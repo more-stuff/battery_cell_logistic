@@ -31,7 +31,7 @@ export default function OperarioDefectuoso() {
     limite,
     limite_defectuosas,
     level_size,
-  } = usePaquete(usuario);
+  } = usePaquete(usuario, true);
 
   const componentRef = useRef(null);
   const handlePrint = useReactToPrint({

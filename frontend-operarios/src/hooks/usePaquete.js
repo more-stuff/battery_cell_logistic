@@ -6,7 +6,7 @@ import {
 } from "../services/api";
 import Swal from "sweetalert2";
 
-export const usePaquete = (usuario) => {
+export const usePaquete = (usuario, is_defective = false) => {
   const [config, setConfig] = useState({
     alerta_cada: 15, // Valor por defecto si falla la red
     limite_caja: 180, // Valor por defecto
@@ -52,10 +52,11 @@ export const usePaquete = (usuario) => {
 
   // gestion del localstorage
   const userKey = usuario ? `_${usuario}` : "";
+  const defectiveKey = is_defective ? "_defective" : "";
 
-  const KEY_CELDAS = `paquete_en_curso${userKey}`;
-  const KEY_HU = `hu_actual${userKey}`;
-  const KEY_FECHA = `fecha_inicio${userKey}`;
+  const KEY_CELDAS = `paquete_en_curso${userKey}${defectiveKey}`;
+  const KEY_HU = `hu_actual${userKey}${defectiveKey}`;
+  const KEY_FECHA = `fecha_inicio${userKey}${defectiveKey}`;
 
   useEffect(() => {
     if (!usuario) {
@@ -123,7 +124,7 @@ export const usePaquete = (usuario) => {
     }
   };
 
-  const agregarCelda = (is_defective) => {
+  const agregarCelda = () => {
     // 1. VALIDACIONES BÁSICAS
     if (!huActual)
       return {
@@ -200,6 +201,15 @@ export const usePaquete = (usuario) => {
       setFechaInicio(new Date().toISOString());
     }
 
+    let has_revision = false;
+
+    if (!is_defective) {
+      has_revision =
+        config.alerta_cada === -1
+          ? celdas.length + 1 === 1 || celdas.length + 1 === config.limite_caja
+          : (celdas.length + 1) % config.alerta_cada === 0;
+    }
+
     // 4. GUARDAR
     const nuevaCelda = {
       id: Date.now(),
@@ -207,31 +217,15 @@ export const usePaquete = (usuario) => {
       hu_asociado: huActual,
       fecha_caducidad: fechaFormateada,
       timestamp: new Date().toISOString(),
-      es_revision:
-        config.alerta_cada === -1
-          ? celdas.length + 1 === 1 || celdas.length + 1 === config.limite_caja
-          : (celdas.length + 1) % config.alerta_cada === 0,
+      es_revision: has_revision,
     };
 
+    // Alerta preventiva
     const nuevasCeldas = [...celdas, nuevaCelda];
     setCeldas(nuevasCeldas);
     setCeldaInput("");
 
-    // Alerta preventiva
     const total_celdas = nuevasCeldas.length;
-    let requiereRevision = false;
-
-    // LÓGICA VARIABLE:
-    if (config.alerta_cada === -1) {
-      // MODO A: "Solo Primera y Última"
-      // Salta si es la pieza 1 O si es la pieza final (180)
-      requiereRevision =
-        total_celdas === 0 || total_celdas + 1 === config.limite_caja;
-    } else if (config.alerta_cada > 0) {
-      // MODO B: "Intervalos" (Lo que tenías antes)
-      // Salta cada X piezas (ej: 15, 30, 45...)
-      requiereRevision = (total_celdas + 1) % config.alerta_cada === 0;
-    }
 
     const nivelCompletado =
       total_celdas % config.level_size === 0 &&
@@ -240,7 +234,7 @@ export const usePaquete = (usuario) => {
 
     return {
       success: true,
-      revision: requiereRevision, // true o false
+      revision: has_revision, // true o false
       numeroPieza: total_celdas + 1, // Para mostrarlo en la alerta
       nivelCompletado: nivelCompletado,
       numeroNivel: numeroNivel,
