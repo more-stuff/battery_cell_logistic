@@ -202,7 +202,6 @@ export const usePaquete = (usuario, is_defective = false) => {
     }
 
     let has_revision = false;
-
     if (!is_defective) {
       has_revision =
         config.alerta_cada === -1
@@ -220,12 +219,27 @@ export const usePaquete = (usuario, is_defective = false) => {
       es_revision: has_revision,
     };
 
-    // Alerta preventiva
     const nuevasCeldas = [...celdas, nuevaCelda];
     setCeldas(nuevasCeldas);
     setCeldaInput("");
 
+    // Alerta preventiva
     const total_celdas = nuevasCeldas.length;
+    let requiereRevision = false;
+
+    // LÓGICA VARIABLE:
+    if (!is_defective) {
+      if (config.alerta_cada === -1) {
+        // MODO A: "Solo Primera y Última"
+        // Salta si es la pieza 1 O si es la pieza final (180)
+        requiereRevision =
+          total_celdas === 0 || total_celdas + 1 === config.limite_caja;
+      } else if (config.alerta_cada > 0) {
+        // MODO B: "Intervalos" (Lo que tenías antes)
+        // Salta cada X piezas (ej: 15, 30, 45...)
+        requiereRevision = (total_celdas + 1) % config.alerta_cada === 0;
+      }
+    }
 
     const nivelCompletado =
       total_celdas % config.level_size === 0 &&
@@ -234,7 +248,7 @@ export const usePaquete = (usuario, is_defective = false) => {
 
     return {
       success: true,
-      revision: has_revision, // true o false
+      revision: requiereRevision, // true o false
       numeroPieza: total_celdas + 1, // Para mostrarlo en la alerta
       nivelCompletado: nivelCompletado,
       numeroNivel: numeroNivel,

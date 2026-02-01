@@ -153,9 +153,7 @@ export default function PanelEscaneo({
     // CASO 4: ÉXITO NORMAL (Sin revisión ni fin de nivel)
     else {
       reproducirSonido("ok");
-      if (modoDefectuoso) {
-        setHu("");
-      }
+
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
