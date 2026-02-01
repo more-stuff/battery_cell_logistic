@@ -262,7 +262,7 @@ export const usePaquete = (usuario, is_defective = false) => {
     setIdGuardado(null); // Quita el modal de éxito
   };
 
-  const enviarDatos = async (is_defective) => {
+  const enviarDatos = async () => {
     if (
       (celdas.length < config.limite_caja && !is_defective) ||
       (celdas.length < config.limite_defectuosa && is_defective)
@@ -297,6 +297,7 @@ export const usePaquete = (usuario, is_defective = false) => {
           estado_calidad: c.es_revision ? "REVISION" : "OK",
         })),
       };
+      console.log(payload);
 
       const respuesta = await enviarPaquete(payload);
       console.log("RESPUESTA DEL SERVIDOR:", respuesta);

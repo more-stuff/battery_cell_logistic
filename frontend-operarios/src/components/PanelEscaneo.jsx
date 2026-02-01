@@ -58,7 +58,7 @@ export default function PanelEscaneo({
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const res = onEscanear(modoDefectuoso); // Ejecutamos la lógica del hook
+    const res = onEscanear(); // Ejecutamos la lógica del hook
     const sonido = res.type || "short_error";
 
     // CASO 1: ERROR (Duplicado, fecha mal, etc.)
@@ -216,7 +216,7 @@ export default function PanelEscaneo({
       width: 500,
     }).then((result) => {
       if (result.isConfirmed) {
-        onEnviar(modoDefectuoso);
+        onEnviar();
       }
     });
   };

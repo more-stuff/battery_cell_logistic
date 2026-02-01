@@ -35,6 +35,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
                 .filter(models.Celda.dmc_code.in_(dmcs_entrantes))
                 .all()
             )
+            print(duplicados)
 
             if duplicados:
                 # Si encontramos alguno, PARAMOS TODO.
