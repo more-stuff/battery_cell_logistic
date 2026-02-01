@@ -23,6 +23,9 @@ export const AdminTabla = ({
     if (colId.includes("fecha") || colId.includes("caducidad")) {
       return valor ? new Date(valor).toLocaleDateString() : "-";
     }
+    if (colId.includes("defective")) {
+      return valor ? "defectuosa" : "válida";
+    }
     return valor || "";
   };
 
