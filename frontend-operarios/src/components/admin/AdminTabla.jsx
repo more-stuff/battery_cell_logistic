@@ -20,6 +20,7 @@ export const AdminTabla = ({
 
   const formatValor = (row, colId) => {
     let valor = row[colId];
+
     if (colId.includes("fecha") || colId.includes("caducidad")) {
       return valor ? new Date(valor).toLocaleDateString() : "-";
     }

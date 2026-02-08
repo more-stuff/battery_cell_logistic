@@ -74,6 +74,16 @@ export const AdminFiltros = ({ filtros, onChange }) => {
           onChange={onChange}
           style={estilos.inputModern}
         />
+        <label style={estilos.labelModern}>Puesto de escaneo</label>
+        <input
+          name="usuario_id"
+          value={filtros.usuario_id}
+          onChange={onChange}
+          style={estilos.inputModern}
+          placeholder="Ej: PUESTO 4"
+        />
+      </div>
+      <div style={estilos.columnaGrid}>
         <label style={estilos.labelModern}>Estado / Calidad</label>
         <div style={estilos.buttonGroup}>
           {/* BOTÓN 1: TODOS */}

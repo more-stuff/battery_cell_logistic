@@ -178,6 +178,7 @@ def aplicar_filtros(
     fecha_caducidad,
     is_defective,
     id_temporal,
+    usuario_id,
 ):
 
     # 1. Join obligatorio: Celda siempre pertenece a una Caja
@@ -232,6 +233,9 @@ def aplicar_filtros(
     if is_defective is not None:
         query = query.filter(models.CajaReempaque.is_defective == is_defective)
 
+    if usuario_id:
+        query = query.filter(models.CajaReempaque.usuario_id.contains(usuario_id))
+
     return query
 
 
@@ -244,8 +248,9 @@ def construir_fila(celda, caja, palet):
         "np": palet.np_packing_list if palet else "",
         "status": getattr(palet, "generation_status", "") if palet else "",
         "hu_proveedor": palet.hu_proveedor if palet else "",
-        "caducidad_inbound": celda.fecha_caducidad,
-        "fecha_reempaque": caja.fecha_fin_reempaque if caja else None,
+        "caducidad_inbound": palet.fecha_caducidad_proveedor,
+        "fecha_inicio_reempaque": caja.fecha_inicio_reempaque if caja else None,
+        "fecha_fin_reempaque": caja.fecha_fin_reempaque if caja else None,
         "operario": (
             getattr(caja, "usuario_id", "") if caja else ""
         ),  # <--- TU DATO NUEVO
@@ -253,7 +258,7 @@ def construir_fila(celda, caja, palet):
         "estado_calidad": getattr(celda, "estado_calidad", "OK"),
         "id_temporal": caja.id_temporal,
         "caducidad_celda": celda.fecha_caducidad,
-        "caducidad_antigua": celda.fecha_caducidad,
+        "caducidad_antigua": caja.fecha_caducidad_caja,
         "fecha_almacenamiento": getattr(caja, "fecha_almacenamiento", None),
         "is_defective": getattr(caja, "is_defective", False),
         "hu_silena": getattr(caja, "hu_silena_outbound", "") or "",
@@ -276,6 +281,7 @@ def buscar_preview(
     fecha_caducidad: Optional[date] = None,
     is_defective: Optional[bool] = None,
     id_temporal: Optional[str] = None,
+    usuario_id: Optional[str] = None,
     # NUEVO PARÁMETRO: Recibimos las columnas separadas por coma
     cols: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -293,6 +299,7 @@ def buscar_preview(
         fecha_caducidad,
         is_defective,
         id_temporal,
+        usuario_id,
     )
     resultados = query.limit(180).all()
 
@@ -327,6 +334,7 @@ def exportar_csv(
     fecha_caducidad: Optional[date] = None,
     is_defective: Optional[bool] = None,
     id_temporal: Optional[str] = None,
+    usuario_id: Optional[str] = None,
     # Selecion de columnas
     cols: Optional[str] = Query(None),
     labels: Optional[str] = Query(
@@ -349,6 +357,7 @@ def exportar_csv(
         fecha_caducidad,
         is_defective,
         id_temporal,
+        usuario_id,
     )
 
     # 1. PREPARAR COLUMNAS

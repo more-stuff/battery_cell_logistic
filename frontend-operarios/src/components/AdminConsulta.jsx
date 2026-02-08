@@ -17,7 +17,16 @@ const COLUMNAS_DISPONIBLES = [
   { id: "hu_proveedor", label: "HU Proveedor", group: "incomming_area" },
   { id: "caducidad_inbound", label: "Cad. Inbound", group: "incomming_area" },
 
-  { id: "fecha_reempaque", label: "F. Reempaque", group: "repacking_area" },
+  {
+    id: "fecha_inicio_reempaque",
+    label: "F. Inicio Reempaque",
+    group: "repacking_area",
+  },
+  {
+    id: "fecha_fin_reempaque",
+    label: "F. Fin Reempaque",
+    group: "repacking_area",
+  },
   { id: "operario", label: "👷 Operario (Interno)", group: "repacking_area" },
   { id: "dmc", label: "DMC (Celda)", group: "repacking_area" },
   { id: "id_temporal", label: "ID Temporal", group: "repacking_area" },
@@ -50,6 +59,7 @@ export const AdminConsulta = () => {
     fecha_fin: "",
     is_defective: "",
     id_temporal: "",
+    usuario_id: "",
   });
 
   const [colsSeleccionadas, setColsSeleccionadas] = useState(
@@ -121,6 +131,7 @@ export const AdminConsulta = () => {
       console.error(error);
       Swal.fire({ icon: "error", title: "Error de Conexión" });
     } finally {
+      console.log(resultados);
       setLoadingPreview(false);
     }
   };
