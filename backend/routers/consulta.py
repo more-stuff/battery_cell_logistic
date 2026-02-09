@@ -149,7 +149,7 @@ def buscar_preview(
         id_temporal,
         usuario_id,
     )
-    resultados = query.limit(180).all()
+    resultados = query.limit(252).all()
 
     # Parsear columnas solicitadas (si no envían nada, devolvemos todo por defecto)
     columnas_pedidas = cols.split(",") if cols else None
