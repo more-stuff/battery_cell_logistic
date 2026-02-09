@@ -4,7 +4,7 @@ from database import engine
 import models
 
 # Importamos los routers que acabamos de crear
-from routers import operarios, almacen, admin
+from routers import operarios, almacen, admin, config, consulta, defective
 
 # Inicializar Base de Datos
 models.Base.metadata.create_all(bind=engine)
@@ -62,6 +62,9 @@ app.add_middleware(
 app.include_router(operarios.router)
 app.include_router(almacen.router)
 app.include_router(admin.router)
+app.include_router(config.router)
+app.include_router(consulta.router)
+app.include_router(defective.router)
 
 
 @app.get("/")
