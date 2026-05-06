@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useReactToPrint } from "react-to-print";
 import { usePaquete } from "../hooks/usePaquete";
 import Login from "./Login";
@@ -8,14 +8,12 @@ import PanelHistorico from "./PanelHistorico";
 import { Etiqueta } from "./Etiqueta";
 import Swal from "sweetalert2";
 
-// ... imports y lógica del hook (usePaquete) arriba ...
 import "../styles/Operario.css";
 
 export default function Operario() {
   const [usuario, setUsuario] = useState("");
   const [logueado, setLogueado] = useState(false);
 
-  // Hook con la lógica
   const {
     huActual,
     setHuActual,
@@ -33,18 +31,39 @@ export default function Operario() {
     level_size,
   } = usePaquete(usuario);
 
-  // calculo celdas a mostrar en pantalla
-  const indexIniciNivell = Math.max(
-    0,
-    Math.floor((celdas.length - 1) / level_size) * level_size,
-  );
-  const celdas_visuales = celdas.slice(indexIniciNivell);
+  // ── Navegación de niveles ─────────────────────────────────────────────────
+  // nivelActual: nivel que se está llenando ahora mismo (0-indexed)
+  const nivelActual =
+    celdas.length === 0 ? 0 : Math.floor((celdas.length - 1) / level_size);
 
-  // referncia para la impresion
+  // totalNiveles: cuántos niveles tiene una caja completa (ej: 180/45 = 4)
+  const totalNiveles = Math.ceil(limite / level_size);
+
+  // nivelVisible: qué nivel está viendo el operario en este momento
+  const [nivelVisible, setNivelVisible] = useState(0);
+
+  // Al escanear, volvemos siempre al nivel actual para no perder el hilo
+  useEffect(() => {
+    setNivelVisible(nivelActual);
+  }, [celdas.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const irNivelAnterior = () => setNivelVisible((v) => Math.max(0, v - 1));
+
+  const irNivelSiguiente = () =>
+    setNivelVisible((v) => Math.min(nivelActual, v + 1));
+
+  // Celdas del nivel visible + offset para numeración correcta
+  const indexIniciNivell = nivelVisible * level_size;
+  const celdas_visuales = celdas.slice(
+    indexIniciNivell,
+    indexIniciNivell + level_size,
+  );
+  // ─────────────────────────────────────────────────────────────────────────
+
   const componentRef = useRef(null);
 
   const handlePrint = useReactToPrint({
-    contentRef: componentRef, // ✅ v3
+    contentRef: componentRef,
     documentTitle: `Etiqueta_${idGuardado}`,
     onAfterPrint: () => console.log("Impresión lanzada"),
   });
@@ -61,9 +80,7 @@ export default function Operario() {
       cancelButtonText: "Cancelar",
     }).then((result) => {
       if (result.isConfirmed) {
-        resetProceso(); // Ejecutamos la limpieza
-
-        // Alerta pequeña de éxito
+        resetProceso();
         const Toast = Swal.mixin({
           toast: true,
           position: "top-end",
@@ -71,15 +88,11 @@ export default function Operario() {
           timer: 2000,
           timerProgressBar: true,
         });
-        Toast.fire({
-          icon: "success",
-          title: "Lista vaciada correctamente",
-        });
+        Toast.fire({ icon: "success", title: "Lista vaciada correctamente" });
       }
     });
   };
 
-  // 1. VISTA DE LOGIN (Si no está logueado)
   if (!logueado) {
     return (
       <Login
@@ -90,10 +103,9 @@ export default function Operario() {
     );
   }
 
-  // 2. VISTA PRINCIPAL
   return (
     <div className="app-container">
-      {/* 2. NUEVO MODAL DE ÉXITO (ID TEMPORAL) */}
+      {/* MODAL DE CAJA CERRADA */}
       {idGuardado && (
         <div className="modal-overlay">
           <div
@@ -106,9 +118,6 @@ export default function Operario() {
             <p style={{ textAlign: "center", marginBottom: "20px" }}>
               Imprima la etiqueta antes de continuar.
             </p>
-
-            {/* --- VISUALIZACIÓN (PARA EL OJO HUMANO) --- */}
-            {/* AQUÍ QUITAMOS EL REF. Solo sirve para que el operario vea que hay una etiqueta. */}
             <div
               style={{
                 transform: "scale(0.8)",
@@ -130,8 +139,6 @@ export default function Operario() {
                 />
               </div>
             </div>
-
-            {/* BOTONERA */}
             <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
               <button
                 onClick={handlePrint}
@@ -147,7 +154,6 @@ export default function Operario() {
               >
                 🖨️ IMPRIMIR ETIQUETA
               </button>
-
               <button
                 onClick={resetProceso}
                 style={{
@@ -167,12 +173,10 @@ export default function Operario() {
         </div>
       )}
 
-      {/* HEADER */}
       <Header usuario={usuario} progreso={celdas.length} total={limite} />
 
-      {/* GRID PRINCIPAL */}
       <main className="main-grid">
-        {/* PANEL IZQUIERDO (ESCANEO) */}
+        {/* PANEL IZQUIERDO */}
         <PanelEscaneo
           hu={huActual}
           setHu={setHuActual}
@@ -186,16 +190,11 @@ export default function Operario() {
           celdas={celdas}
         />
 
-        {/* PANEL DERECHO (HISTÓRICO) */}
+        {/* PANEL DERECHO */}
         <div
           className="historico-container"
-          style={{
-            position: "relative",
-            height: "100%", // <--- OBLIGATORIO para que no crezca infinito
-            overflow: "hidden", // <--- Mantiene todo dentro de la caja
-          }}
+          style={{ position: "relative", height: "100%", overflow: "hidden" }}
         >
-          {/* Botón flotante elegante que no desplaza la tabla */}
           {celdas.length > 0 && (
             <button className="btn-clean-all" onClick={handleVaciarLista}>
               🗑️ LIMPIAR
@@ -206,10 +205,16 @@ export default function Operario() {
             onBorrar={borrarCelda}
             offsetIndex={indexIniciNivell}
             onBorrarDesde={borrarDesde}
+            // Props de navegación de niveles
+            nivelVisible={nivelVisible}
+            nivelActual={nivelActual}
+            totalNiveles={totalNiveles}
+            onPrevNivel={irNivelAnterior}
+            onNextNivel={irNivelSiguiente}
           />
         </div>
       </main>
-      {/* Esto está oculto al ojo (display: none) pero SIEMPRE existe en el HTML. */}
+
       <div className="print-label">
         <div ref={componentRef}>
           <Etiqueta
@@ -219,7 +224,6 @@ export default function Operario() {
           />
         </div>
       </div>
-      {/* Al estar fuera del condicional {idGuardado && ...}, React lo encuentra siempre. */}
     </div>
   );
 }

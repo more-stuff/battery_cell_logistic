@@ -1,3 +1,9 @@
+// ─── TAMAÑO DE NIVEL ──────────────────────────────────────────────────────────
+// Número de celdas por nivel (separador físico dentro de la caja).
+// Cambia este valor si el proveedor cambia el formato de embalaje.
+const LEVEL_SIZE = 45;
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { useState, useEffect } from "react";
 import {
   enviarPaquete,
@@ -12,7 +18,7 @@ export const usePaquete = (usuario, is_defective = false) => {
     limite_caja: 180, // Valor por defecto
     limite_defectuosa: 180,
     len_dmc: 87,
-    level_size: 45,
+    level_size: LEVEL_SIZE,
   });
 
   const [huActual, setHuActual] = useState("");
@@ -35,7 +41,7 @@ export const usePaquete = (usuario, is_defective = false) => {
           limite_caja: Number(datos.limite_caja),
           limite_defectuosa: Number(datos.limite_defectuosa),
           len_dmc: Number(datos.len_dmc),
-          level_size: 45,
+          level_size: LEVEL_SIZE,
         });
         console.log("✅ Configuración cargada:", datos);
       } catch (error) {

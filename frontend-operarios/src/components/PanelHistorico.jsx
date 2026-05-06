@@ -6,6 +6,12 @@ export default function PanelHistorico({
   onBorrar,
   onBorrarDesde,
   offsetIndex,
+  // Navegación de niveles
+  nivelVisible,
+  nivelActual,
+  totalNiveles,
+  onPrevNivel,
+  onNextNivel,
 }) {
   const handleBorrarClick = (indexVisual) => {
     const indexReal = offsetIndex + indexVisual;
@@ -30,6 +36,8 @@ export default function PanelHistorico({
     });
   };
 
+  const esMirandoNivelAnterior = nivelVisible < nivelActual;
+
   return (
     <section
       className="panel historico-panel"
@@ -41,11 +49,112 @@ export default function PanelHistorico({
         boxShadow: "none",
       }}
     >
-      <div className="panel-header">
+      {/* ── HEADER CON NAVEGACIÓN ─────────────────────────────────────────── */}
+      <div className="panel-header" style={{ flexShrink: 0 }}>
         <h3>📋 Historial de Caja</h3>
+
+        {/* Controles de nivel: solo aparecen si hay más de un nivel empezado */}
+        {nivelActual > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            {/* Flecha atrás */}
+            <button
+              onClick={onPrevNivel}
+              disabled={nivelVisible === 0}
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "6px",
+                border: "1px solid #ddd",
+                background: nivelVisible === 0 ? "#f5f5f5" : "#2c3e50",
+                color: nivelVisible === 0 ? "#bbb" : "white",
+                cursor: nivelVisible === 0 ? "not-allowed" : "pointer",
+                fontSize: "1rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.15s",
+              }}
+              title="Nivel anterior"
+            >
+              ◀
+            </button>
+
+            {/* Badge de nivel */}
+            <div
+              style={{
+                padding: "4px 12px",
+                borderRadius: "20px",
+                background: esMirandoNivelAnterior ? "#f39c12" : "#2c3e50",
+                color: "white",
+                fontSize: "0.82rem",
+                fontWeight: "bold",
+                letterSpacing: "0.5px",
+                whiteSpace: "nowrap",
+                transition: "background 0.2s",
+              }}
+            >
+              {esMirandoNivelAnterior && "👁 "}
+              NIVEL {nivelVisible + 1} / {nivelActual + 1}
+            </div>
+
+            {/* Flecha adelante */}
+            <button
+              onClick={onNextNivel}
+              disabled={nivelVisible === nivelActual}
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "6px",
+                border: "1px solid #ddd",
+                background:
+                  nivelVisible === nivelActual ? "#f5f5f5" : "#2c3e50",
+                color: nivelVisible === nivelActual ? "#bbb" : "white",
+                cursor:
+                  nivelVisible === nivelActual ? "not-allowed" : "pointer",
+                fontSize: "1rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.15s",
+              }}
+              title="Nivel siguiente"
+            >
+              ▶
+            </button>
+          </div>
+        )}
+
         <span className="count-badge">{celdas.length} pzs</span>
       </div>
 
+      {/* Banner de aviso cuando el operario está mirando un nivel antiguo */}
+      {esMirandoNivelAnterior && (
+        <div
+          style={{
+            background: "#fff3cd",
+            borderBottom: "2px solid #f39c12",
+            padding: "7px 14px",
+            fontSize: "0.82rem",
+            color: "#856404",
+            fontWeight: "bold",
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          ⚠️ Estás viendo el nivel {nivelVisible + 1} — el escaneo continúa en
+          el nivel {nivelActual + 1}
+        </div>
+      )}
+
+      {/* ── TABLA ────────────────────────────────────────────────────────────── */}
       <div className="table-container" style={{ flex: 1, overflowY: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead
@@ -60,7 +169,6 @@ export default function PanelHistorico({
               <th style={{ padding: "10px", borderBottom: "2px solid #ddd" }}>
                 #
               </th>
-              {/* 👇 NUEVA COLUMNA */}
               <th style={{ padding: "10px", borderBottom: "2px solid #ddd" }}>
                 HU / CAJA
               </th>
@@ -98,31 +206,30 @@ export default function PanelHistorico({
                     color: "#aaa",
                   }}
                 >
-                  --- Caja vacía ---
+                  --- Nivel vacío ---
                 </td>
               </tr>
             ) : (
-              // Hacemos copia del array para no mutar el original al invertir
               [...celdas].reverse().map((celda, index) => {
-                // Cálculo del número real (porque estamos invirtiendo la vista)
                 const indexOriginal = celdas.length - 1 - index;
                 const numeroPieza = offsetIndex + indexOriginal + 1;
 
                 return (
                   <tr
-                    key={index}
+                    key={celda.id ?? index}
                     style={{
                       borderBottom: "1px solid #eee",
                       backgroundColor: celda.es_revision
                         ? "#fff5f5"
                         : "transparent",
+                      // Pequeña indicación visual si es nivel antiguo
+                      opacity: esMirandoNivelAnterior ? 0.85 : 1,
                     }}
                   >
                     <td style={{ padding: "10px", color: "#888" }}>
                       {numeroPieza}
                     </td>
 
-                    {/* 👇 DATO DE LA COLUMNA HU */}
                     <td
                       style={{
                         padding: "10px",
