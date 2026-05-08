@@ -1,8 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    UploadFile,
+    File,
+    status,
+)
+import logging
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, and_, text
+from sqlalchemy import func, or_, and_, text
 from typing import Optional
 from pydantic import BaseModel
 from datetime import date, datetime, time, timedelta
@@ -19,6 +28,7 @@ import models, schemas, auth
 # Fíjate que NO importamos schemas aquí para el modelo de entrada,
 # lo definimos localmente para evitar el error que tienes.
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
@@ -165,3 +175,150 @@ def registrar_salida(
 
     db.commit()
     return {"mensaje": "✅ DATOS DE SALIDA GUARDADOS CORRECTAMENTE"}
+
+
+@router.get("/{id_temporal}/celdas", response_model=schemas.CajaConCeldas)
+def get_celdas_caja(
+    id_temporal: str,
+    db: Session = Depends(get_db),
+    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
+):
+    # joinedload: carga la caja Y sus celdas en UNA SOLA query con JOIN.
+    # Sin esto SQLAlchemy haria 2 queries separadas (lazy load por defecto).
+    caja = (
+        db.query(models.CajaReempaque)
+        .options(joinedload(models.CajaReempaque.celdas))
+        .filter(models.CajaReempaque.id_temporal == id_temporal)
+        .first()
+    )
+
+    if not caja:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No se encontro ninguna caja con id '{id_temporal}'",
+        )
+
+    celdas_detalle = [
+        schemas.CeldaDetalle(
+            dmc_code=c.dmc_code,
+            fecha_caducidad=c.fecha_caducidad,
+            hu_origen=c.hu_origen_id,
+            estado_calidad=c.estado_calidad or "OK",
+        )
+        for c in caja.celdas
+    ]
+
+    return schemas.CajaConCeldas(
+        id_temporal=caja.id_temporal,
+        fecha_caducidad_caja=caja.fecha_caducidad_caja,
+        is_defective=caja.is_defective,
+        total_celdas=len(celdas_detalle),
+        celdas=celdas_detalle,
+    )
+
+
+@router.post("/sustituir-celda", response_model=schemas.SustitucionResponse)
+def sustituir_celda(
+    datos: schemas.SustitucionInput,
+    db: Session = Depends(get_db),
+    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
+):
+    try:
+        # --- PASO 1: Buscar la caja ---
+        caja = (
+            db.query(models.CajaReempaque)
+            .filter(models.CajaReempaque.id_temporal == datos.id_temporal)
+            .first()
+        )
+        if not caja:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Caja '{datos.id_temporal}' no encontrada.",
+            )
+
+        # --- PASO 2: Buscar la celda antigua dentro de esa caja ---
+        # El filtro doble (dmc_code index + caja_reempaque_id index) es O(log n).
+        celda_antigua = (
+            db.query(models.Celda)
+            .filter(
+                models.Celda.dmc_code == datos.dmc_antiguo,
+                models.Celda.caja_reempaque_id == caja.id,
+            )
+            .first()
+        )
+        if not celda_antigua:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"La celda '{datos.dmc_antiguo}' no existe en la caja "
+                    f"'{datos.id_temporal}'. Comprueba que el DMC es correcto."
+                ),
+            )
+
+        # --- PASO 3: Verificar que el nuevo DMC no colisiona ---
+        if datos.nueva_celda.dmc_code != datos.dmc_antiguo:
+            # Solo los campos necesarios, no toda la fila
+            conflicto = (
+                db.query(models.Celda.caja_reempaque_id)
+                .filter(models.Celda.dmc_code == datos.nueva_celda.dmc_code)
+                .first()
+            )
+            if conflicto:
+                id_temporal_conflicto = (
+                    db.query(models.CajaReempaque.id_temporal)
+                    .filter(models.CajaReempaque.id == conflicto.caja_reempaque_id)
+                    .scalar()
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"El nuevo DMC '{datos.nueva_celda.dmc_code}' ya existe "
+                        f"en la caja '{id_temporal_conflicto or 'Desconocida'}'. No se puede usar."
+                    ),
+                )
+
+        # --- PASO 5: Actualizar la celda ---
+
+        celda_antigua.dmc_code = datos.nueva_celda.dmc_code
+        celda_antigua.fecha_caducidad = datos.nueva_celda.fecha_caducidad
+        celda_antigua.estado_calidad = datos.nueva_celda.estado_calidad or "OK"
+
+        # --- PASO 6: Recalcular fecha_caducidad_caja con SELECT MIN() en SQL ---
+        # flush() para que el MIN() vea ya el nuevo valor de fecha_caducidad.
+        db.flush()
+
+        # SELECT MIN(fecha_caducidad) FROM celdas WHERE caja_reempaque_id = ?
+        # Una sola query agregada en vez de cargar 180 filas en Python.
+        nueva_caducidad_caja = (
+            db.query(func.min(models.Celda.fecha_caducidad))
+            .filter(models.Celda.caja_reempaque_id == caja.id)
+            .scalar()
+        )
+        caja.fecha_caducidad_caja = nueva_caducidad_caja
+
+        db.commit()
+
+        logger.info(
+            f"Sustitucion en caja {datos.id_temporal}: "
+            f"{datos.dmc_antiguo} -> {datos.nueva_celda.dmc_code} "
+            f"por usuario {datos.usuario_id}"
+        )
+
+        return schemas.SustitucionResponse(
+            mensaje="Celda sustituida correctamente.",
+            id_temporal=datos.id_temporal,
+            dmc_antiguo=datos.dmc_antiguo,
+            dmc_nuevo=datos.nueva_celda.dmc_code,
+            nueva_fecha_caducidad_caja=nueva_caducidad_caja,
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        db.rollback()
+        logger.error(
+            f"FALLO al sustituir celda en caja {datos.id_temporal}: {str(e)}",
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail="Error al sustituir la celda.")
