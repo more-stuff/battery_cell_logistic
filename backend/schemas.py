@@ -61,6 +61,47 @@ class OutboundData(BaseModel):
 
 
 # --- PARTE 4: CONFIGURACIÓN ---
+
+# --- PARTE 5: SUSTITUCIÓN DE CELDAS EN CAJA CERRADA ---
+
+
+# Info de una celda individual para devolver al frontend
+class CeldaDetalle(BaseModel):
+    dmc_code: str
+    fecha_caducidad: date
+    hu_origen: Optional[str] = None
+    estado_calidad: str
+
+    class Config:
+        from_attributes = True
+
+
+# Detalle completo de una caja con sus celdas (para el panel de sustitución)
+class CajaConCeldas(BaseModel):
+    id_temporal: str
+    fecha_caducidad_caja: Optional[date]
+    is_defective: bool
+    total_celdas: int
+    celdas: List[CeldaDetalle]
+
+
+# Petición de sustitución de una celda
+class SustitucionInput(BaseModel):
+    id_temporal: str  # La caja donde está la celda a sustituir
+    dmc_antiguo: str  # DMC de la celda que sale
+    nueva_celda: CeldaInput  # Datos completos de la celda que entra
+    usuario_id: Optional[str] = None  # Quién hace la sustitución (auditoría)
+
+
+# Respuesta tras una sustitución exitosa
+class SustitucionResponse(BaseModel):
+    mensaje: str
+    id_temporal: str
+    dmc_antiguo: str
+    dmc_nuevo: str
+    nueva_fecha_caducidad_caja: Optional[date]  # La caducidad puede cambiar
+
+
 class ConfigInput(BaseModel):
     clave: str
     valor: str

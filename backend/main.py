@@ -18,6 +18,7 @@ def initialize_config():
 
     db = SessionLocal()
     try:
+
         # 1. Chequear ALERTA
         if not db.query(models.Configuracion).filter_by(clave="alerta_cada").first():
             print("⚙️ Creando configuración por defecto: alerta_cada = 15")
