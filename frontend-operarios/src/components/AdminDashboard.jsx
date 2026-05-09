@@ -3,7 +3,8 @@ import { AdminIncoming } from "./AdminIncoming";
 import { AdminOutbound } from "./AdminOutbound";
 import { AdminConsulta } from "./AdminConsulta";
 import { AdminConfig } from "./AdminConfig";
-import { AdminLogin } from "./AdminLogin"; // <--- Importamos el Login
+import { AdminLogin } from "./AdminLogin";
+import { AdminModificarCaja } from "./AdminModificarCaja";
 
 export const AdminDashboard = () => {
   const [user, setUser] = useState(null); // Estado del usuario logueado
@@ -40,6 +41,8 @@ export const AdminDashboard = () => {
         return <AdminOutbound />;
       case "consulta":
         return <AdminConsulta />;
+      case "modificar":
+        return <AdminModificarCaja />;
       case "config":
         // Protección extra por si alguien intenta forzar la vista
         return user.rol === "superadmin" ? (
@@ -82,6 +85,17 @@ export const AdminDashboard = () => {
             }
           >
             📤 REGISTRAR SALIDA
+          </button>
+
+          <button
+            onClick={() => setPestanaActual("modificar")}
+            style={
+              pestanaActual === "modificar"
+                ? estilos.botonActivo
+                : estilos.boton
+            }
+          >
+            🔧 MODIFICAR CAJA
           </button>
 
           <button

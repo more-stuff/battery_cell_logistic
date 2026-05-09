@@ -191,3 +191,13 @@ export const obtenerDmcDefectuosos = async () => {
 
   return response.data; // Devuelve ["A1", "B2", ...]
 };
+
+export const getCeldasCaja = async (idTemporal) => {
+  const res = await api.get(`/admin/${idTemporal}/celdas`);
+  return res.data;
+};
+ 
+export const sustituirCelda = async (payload) => {
+  const res = await api.post("/admin/sustituir-celda", payload);
+  return res.data;
+};
