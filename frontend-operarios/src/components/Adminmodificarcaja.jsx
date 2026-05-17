@@ -1,29 +1,23 @@
 import { useState } from "react";
 import Swal from "sweetalert2";
-import { getCeldasCaja, sustituirCelda } from "../services/api";
+import { getCeldasCaja, sustituirCelda, eliminarCaja } from "../services/api";
 import { extractFechaCaducidad } from "../services/extractFecha";
-
-// ── Estados del flujo ─────────────────────────────────────────────────────────
-// IDLE        → pantalla inicial, input de TMP id
-// LOADING     → cargando celdas
-// LISTA       → mostrando celdas, con filtro y selección
-// FORMULARIO  → celda elegida, rellenando nueva celda
-// GUARDANDO   → petición POST en vuelo
+import { estilos } from "../styles/AdminModificarCaja.styles";
 
 export const AdminModificarCaja = () => {
-  const [fase, setFase] = useState("IDLE");
   const [idInput, setIdInput] = useState("");
-  const [caja, setCaja] = useState(null); // respuesta GET celdas
+  const [caja, setCaja] = useState(null);
   const [filtroDmc, setFiltroDmc] = useState("");
-  const [celdaElegida, setCeldaElegida] = useState(null); // celda a sustituir
+  const [celdaElegida, setCeldaElegida] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [guardando, setGuardando] = useState(false);
 
   // Formulario nueva celda
   const [nuevoDmc, setNuevoDmc] = useState("");
   const [nuevaFecha, setNuevaFecha] = useState("");
   const [nuevoEstado, setNuevoEstado] = useState("OK");
-  const [fechaError, setFechaError] = useState(""); // aviso extracción
+  const [fechaError, setFechaError] = useState("");
 
-  // Extrae la fecha automáticamente de los últimos 6 dígitos al escribir el DMC
   const handleNuevoDmcChange = (valor) => {
     setNuevoDmc(valor);
     setFechaError("");
@@ -40,21 +34,62 @@ export const AdminModificarCaja = () => {
     }
   };
 
-  // ── Buscar caja ─────────────────────────────────────────────────────────────
+  // ── Buscar caja ──────────────────────────────────────────────────────────────
   const buscarCaja = async () => {
     const id = idInput.trim().toUpperCase();
     if (!id) return;
-    setFase("LOADING");
+    setLoading(true);
     try {
       const data = await getCeldasCaja(id);
       setCaja(data);
       setFiltroDmc("");
       setCeldaElegida(null);
-      setFase("LISTA");
     } catch (err) {
       const detail = err.response?.data?.detail ?? "Error al buscar la caja.";
       Swal.fire({ icon: "error", title: "Caja no encontrada", text: detail });
-      setFase("IDLE");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const limpiar = () => {
+    setCaja(null);
+    setIdInput("");
+    setCeldaElegida(null);
+    setFiltroDmc("");
+  };
+
+  // ── Eliminar caja completa ───────────────────────────────────────────────────
+  const handleEliminarCaja = async () => {
+    const confirm = await Swal.fire({
+      icon: "warning",
+      title: "¿Eliminar caja completa?",
+      html: `
+        <p>Se eliminará la caja <b>${caja.id_temporal}</b> y sus <b>${caja.total_celdas} celdas</b>.</p>
+        <p style="color:#e74c3c; font-weight:bold; margin-top:10px;">Esta acción no se puede deshacer.</p>
+      `,
+      showCancelButton: true,
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#e74c3c",
+    });
+    if (!confirm.isConfirmed) return;
+
+    setGuardando(true);
+    try {
+      await eliminarCaja(caja.id_temporal);
+      limpiar();
+      Swal.fire({
+        icon: "success",
+        title: "Caja eliminada",
+        timer: 3000,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      const detail = err.response?.data?.detail ?? "Error al eliminar la caja.";
+      Swal.fire({ icon: "error", title: "Error", text: detail });
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -64,7 +99,7 @@ export const AdminModificarCaja = () => {
     setNuevoDmc("");
     setNuevaFecha(celda.fecha_caducidad ?? "");
     setNuevoEstado(celda.estado_calidad ?? "OK");
-    setFase("FORMULARIO");
+    setFechaError("");
   };
 
   // ── Confirmar sustitución ────────────────────────────────────────────────────
@@ -97,7 +132,7 @@ export const AdminModificarCaja = () => {
     });
     if (!confirm.isConfirmed) return;
 
-    setFase("GUARDANDO");
+    setGuardando(true);
     try {
       const user = JSON.parse(localStorage.getItem("admin_user") ?? "{}");
       const res = await sustituirCelda({
@@ -113,24 +148,21 @@ export const AdminModificarCaja = () => {
       });
 
       // Actualizar lista local sin volver a hacer GET
-      const celdasActualizadas = caja.celdas.map((c) =>
-        c.dmc_code === celdaElegida.dmc_code
-          ? {
-              ...c,
-              dmc_code: nuevoDmc.trim(),
-              fecha_caducidad: nuevaFecha,
-              estado_calidad: nuevoEstado,
-            }
-          : c,
-      );
       setCaja({
         ...caja,
-        celdas: celdasActualizadas,
+        celdas: caja.celdas.map((c) =>
+          c.dmc_code === celdaElegida.dmc_code
+            ? {
+                ...c,
+                dmc_code: nuevoDmc.trim(),
+                fecha_caducidad: nuevaFecha,
+                estado_calidad: nuevoEstado,
+              }
+            : c,
+        ),
         fecha_caducidad_caja: res.nueva_fecha_caducidad_caja,
       });
-
       setCeldaElegida(null);
-      setFase("LISTA");
 
       Swal.fire({
         icon: "success",
@@ -142,57 +174,45 @@ export const AdminModificarCaja = () => {
     } catch (err) {
       const detail = err.response?.data?.detail ?? "Error al sustituir.";
       Swal.fire({ icon: "error", title: "Error", text: detail });
-      setFase("FORMULARIO");
+    } finally {
+      setGuardando(false);
     }
   };
 
-  // ── Filtrado ─────────────────────────────────────────────────────────────────
   const celdasFiltradas =
     caja?.celdas?.filter((c) =>
       c.dmc_code.toLowerCase().includes(filtroDmc.toLowerCase()),
     ) ?? [];
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // RENDER
-  // ════════════════════════════════════════════════════════════════════════════
   return (
-    <div style={s.page}>
-      <h2 style={s.titulo}>🔧 Modificar Caja Cerrada</h2>
-      <p style={s.subtitulo}>
+    <div style={estilos.page}>
+      <h2 style={estilos.titulo}>🔧 Modificar Caja Cerrada</h2>
+      <p style={estilos.subtitulo}>
         Busca una caja por su identificador temporal, selecciona la celda a
         sustituir e introduce los datos de la nueva unidad.
       </p>
 
       {/* ── BUSCADOR ─────────────────────────────────────────────────────── */}
-      <div style={s.card}>
-        <label style={s.label}>Identificador de caja (TMP-...)</label>
+      <div style={estilos.card}>
+        <label style={estilos.label}>Identificador de caja (TMP-...)</label>
         <div style={{ display: "flex", gap: 10 }}>
           <input
-            style={s.input}
+            style={estilos.input}
             placeholder="Ej: TMP-196A4F3B2E8C"
             value={idInput}
             onChange={(e) => setIdInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && buscarCaja()}
-            disabled={fase === "LOADING" || fase === "GUARDANDO"}
+            disabled={loading || guardando}
           />
           <button
-            style={s.btnPrimario}
+            style={estilos.btnPrimario}
             onClick={buscarCaja}
-            disabled={
-              fase === "LOADING" || fase === "GUARDANDO" || !idInput.trim()
-            }
+            disabled={loading || guardando || !idInput.trim()}
           >
-            {fase === "LOADING" ? "Buscando…" : "🔍 Buscar"}
+            {loading ? "Buscando…" : "🔍 Buscar"}
           </button>
           {caja && (
-            <button
-              style={s.btnSecundario}
-              onClick={() => {
-                setCaja(null);
-                setIdInput("");
-                setFase("IDLE");
-              }}
-            >
+            <button style={estilos.btnSecundario} onClick={limpiar}>
               Limpiar
             </button>
           )}
@@ -201,7 +221,7 @@ export const AdminModificarCaja = () => {
 
       {/* ── INFO CAJA ────────────────────────────────────────────────────── */}
       {caja && (
-        <div style={s.infoBanner}>
+        <div style={estilos.infoBanner}>
           <span>
             📦 <b>{caja.id_temporal}</b>
           </span>
@@ -212,175 +232,174 @@ export const AdminModificarCaja = () => {
             Caducidad caja: <b>{caja.fecha_caducidad_caja ?? "—"}</b>
           </span>
           <span
-            style={{
-              background: caja.is_defective ? "#c0392b" : "#27ae60",
-              color: "white",
-              padding: "2px 10px",
-              borderRadius: 12,
-              fontSize: "0.8rem",
-            }}
+            style={
+              caja.is_defective
+                ? estilos.badgeDefectuosa
+                : estilos.badgeEstandar
+            }
           >
             {caja.is_defective ? "DEFECTUOSA" : "ESTÁNDAR"}
           </span>
+          <button
+            style={{
+              ...estilos.btnPeligro,
+              marginLeft: "auto",
+              opacity: guardando ? 0.5 : 1,
+            }}
+            onClick={handleEliminarCaja}
+            disabled={guardando}
+          >
+            🗑️ Eliminar caja
+          </button>
         </div>
       )}
 
       {/* ── LISTA DE CELDAS ──────────────────────────────────────────────── */}
-      {(fase === "LISTA" || fase === "FORMULARIO" || fase === "GUARDANDO") &&
-        caja && (
-          <div style={s.card}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                marginBottom: 14,
-              }}
-            >
-              <span style={s.label}>Celdas de la caja</span>
-              <input
-                style={{ ...s.input, flex: 1, marginBottom: 0 }}
-                placeholder="🔍 Filtrar por DMC…"
-                value={filtroDmc}
-                onChange={(e) => setFiltroDmc(e.target.value)}
-              />
-              <span
-                style={{
-                  color: "#888",
-                  fontSize: "0.85rem",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {celdasFiltradas.length} / {caja.celdas.length}
-              </span>
-            </div>
+      {caja && (
+        <div style={estilos.card}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginBottom: 14,
+            }}
+          >
+            <span style={estilos.label}>Celdas de la caja</span>
+            <input
+              style={{ ...estilos.input, flex: 1, marginBottom: 0 }}
+              placeholder="🔍 Filtrar por DMC…"
+              value={filtroDmc}
+              onChange={(e) => setFiltroDmc(e.target.value)}
+            />
+          </div>
 
-            <div style={s.tablaWrapper}>
-              <table style={s.tabla}>
-                <thead>
+          <div style={estilos.tablaWrapper}>
+            <table style={estilos.tabla}>
+              <thead>
+                <tr>
+                  <th style={estilos.th}>#</th>
+                  <th style={estilos.th}>DMC</th>
+                  <th style={estilos.th}>Caducidad</th>
+                  <th style={estilos.th}>Estado</th>
+                  <th style={estilos.th}>HU Origen</th>
+                  <th style={estilos.th}>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {celdasFiltradas.length === 0 ? (
                   <tr>
-                    {["#", "DMC", "Caducidad", "Estado", "HU Origen", ""].map(
-                      (h) => (
-                        <th key={h} style={s.th}>
-                          {h}
-                        </th>
-                      ),
-                    )}
+                    <td
+                      colSpan={6}
+                      style={{
+                        textAlign: "center",
+                        color: "#aaa",
+                        padding: 24,
+                      }}
+                    >
+                      No hay celdas que coincidan con el filtro.
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {celdasFiltradas.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={6}
+                ) : (
+                  celdasFiltradas.map((celda, i) => {
+                    const esElegida = celdaElegida?.dmc_code === celda.dmc_code;
+                    return (
+                      <tr
+                        key={celda.dmc_code}
                         style={{
-                          ...s.td,
-                          textAlign: "center",
-                          color: "#aaa",
-                          padding: 24,
+                          background: esElegida
+                            ? "#ebf5fb"
+                            : i % 2 === 0
+                              ? "#fff"
+                              : "#fafafa",
+                          outline: esElegida ? "2px solid #2980b9" : "none",
                         }}
                       >
-                        No hay celdas que coincidan con el filtro.
-                      </td>
-                    </tr>
-                  ) : (
-                    celdasFiltradas.map((celda, i) => {
-                      const esElegida =
-                        celdaElegida?.dmc_code === celda.dmc_code;
-                      return (
-                        <tr
-                          key={celda.dmc_code}
+                        <td style={{ ...estilos.td, color: "#aaa", width: 40 }}>
+                          {i + 1}
+                        </td>
+                        <td
                           style={{
-                            background: esElegida
-                              ? "#ebf5fb"
-                              : i % 2 === 0
-                                ? "#fff"
-                                : "#fafafa",
-                            outline: esElegida ? "2px solid #2980b9" : "none",
+                            ...estilos.td,
+                            fontFamily: "monospace",
+                            fontWeight: "bold",
                           }}
                         >
-                          <td style={{ ...s.td, color: "#aaa", width: 40 }}>
-                            {i + 1}
-                          </td>
-                          <td
+                          {celda.dmc_code}
+                        </td>
+                        <td style={estilos.td}>{celda.fecha_caducidad}</td>
+                        <td style={estilos.td}>
+                          <span
                             style={{
-                              ...s.td,
-                              fontFamily: "monospace",
-                              fontWeight: "bold",
+                              background:
+                                celda.estado_calidad === "OK"
+                                  ? "#27ae60"
+                                  : "#e74c3c",
+                              color: "white",
+                              padding: "2px 8px",
+                              borderRadius: 4,
+                              fontSize: "0.8rem",
                             }}
                           >
-                            {celda.dmc_code}
-                          </td>
-                          <td style={s.td}>{celda.fecha_caducidad}</td>
-                          <td style={s.td}>
-                            <span
-                              style={{
-                                background:
-                                  celda.estado_calidad === "OK"
-                                    ? "#27ae60"
-                                    : "#e74c3c",
-                                color: "white",
-                                padding: "2px 8px",
-                                borderRadius: 4,
-                                fontSize: "0.8rem",
-                              }}
-                            >
-                              {celda.estado_calidad}
-                            </span>
-                          </td>
-                          <td
-                            style={{
-                              ...s.td,
-                              color: "#2980b9",
-                              fontFamily: "monospace",
-                              fontSize: "0.85rem",
-                            }}
+                            {celda.estado_calidad}
+                          </span>
+                        </td>
+                        <td
+                          style={{
+                            ...estilos.td,
+                            color: "#2980b9",
+                            fontFamily: "monospace",
+                            fontSize: "0.85rem",
+                          }}
+                        >
+                          {celda.hu_origen ?? "—"}
+                        </td>
+                        <td style={{ ...estilos.td, textAlign: "center" }}>
+                          <button
+                            style={
+                              esElegida ? estilos.btnElegido : estilos.btnElegir
+                            }
+                            onClick={() => seleccionarCelda(celda)}
+                            disabled={guardando}
                           >
-                            {celda.hu_origen ?? "—"}
-                          </td>
-                          <td style={{ ...s.td, textAlign: "center" }}>
-                            <button
-                              style={esElegida ? s.btnElegido : s.btnElegir}
-                              onClick={() => seleccionarCelda(celda)}
-                              disabled={fase === "GUARDANDO"}
-                            >
-                              {esElegida ? "✓ Elegida" : "Sustituir"}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                            {esElegida ? "✓ Elegida" : "Sustituir"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
+      )}
 
       {/* ── FORMULARIO NUEVA CELDA ────────────────────────────────────────── */}
-      {fase === "FORMULARIO" && celdaElegida && (
-        <div style={{ ...s.card, borderLeft: "4px solid #2980b9" }}>
+      {celdaElegida && (
+        <div style={{ ...estilos.card, borderLeft: "4px solid #2980b9" }}>
           <h3 style={{ margin: "0 0 16px", color: "#2c3e50" }}>
             Nueva celda para sustituir{" "}
-            <code style={s.code}>{celdaElegida.dmc_code}</code>
+            <code style={estilos.code}>{celdaElegida.dmc_code}</code>
           </h3>
 
-          <div style={s.formGrid}>
+          <div style={estilos.formGrid}>
             <div>
-              <label style={s.label}>Nuevo DMC *</label>
+              <label style={estilos.label}>Nuevo DMC *</label>
               <input
-                style={s.input}
+                style={estilos.input}
                 placeholder="Escanea o escribe el nuevo DMC"
                 value={nuevoDmc}
                 onChange={(e) => handleNuevoDmcChange(e.target.value)}
                 autoFocus
               />
+              {fechaError && <p style={estilos.fechaError}>⚠️ {fechaError}</p>}
             </div>
 
             <div>
-              <label style={s.label}>Estado de calidad</label>
+              <label style={estilos.label}>Estado de calidad</label>
               <select
-                style={s.input}
+                style={estilos.input}
                 value={nuevoEstado}
                 onChange={(e) => setNuevoEstado(e.target.value)}
               >
@@ -391,15 +410,17 @@ export const AdminModificarCaja = () => {
           </div>
 
           <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-            <button style={s.btnPrimario} onClick={confirmarSustitucion}>
-              ✅ Confirmar sustitución
+            <button
+              style={estilos.btnPrimario}
+              onClick={confirmarSustitucion}
+              disabled={guardando}
+            >
+              {guardando ? "Guardando…" : "✅ Confirmar sustitución"}
             </button>
             <button
-              style={s.btnSecundario}
-              onClick={() => {
-                setCeldaElegida(null);
-                setFase("LISTA");
-              }}
+              style={estilos.btnSecundario}
+              onClick={() => setCeldaElegida(null)}
+              disabled={guardando}
             >
               Cancelar
             </button>
@@ -408,115 +429,4 @@ export const AdminModificarCaja = () => {
       )}
     </div>
   );
-};
-
-// ── Estilos ────────────────────────────────────────────────────────────────────
-const s = {
-  page: { maxWidth: 1100, margin: "0 auto" },
-  titulo: { margin: "0 0 6px", color: "#2c3e50", fontSize: "1.6rem" },
-  subtitulo: { margin: "0 0 24px", color: "#7f8c8d", fontSize: "0.95rem" },
-  card: {
-    background: "white",
-    borderRadius: 10,
-    padding: 24,
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-    marginBottom: 20,
-  },
-  infoBanner: {
-    display: "flex",
-    alignItems: "center",
-    gap: 24,
-    flexWrap: "wrap",
-    background: "#eaf4fb",
-    border: "1px solid #aed6f1",
-    borderRadius: 8,
-    padding: "12px 20px",
-    marginBottom: 20,
-    fontSize: "0.95rem",
-  },
-  label: {
-    display: "block",
-    fontWeight: "bold",
-    color: "#2c3e50",
-    marginBottom: 6,
-    fontSize: "0.9rem",
-  },
-  input: {
-    width: "100%",
-    padding: "10px 14px",
-    border: "1px solid #ddd",
-    borderRadius: 6,
-    fontSize: "0.95rem",
-    boxSizing: "border-box",
-    outline: "none",
-    marginBottom: 0,
-  },
-  formGrid: { display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 16 },
-  tablaWrapper: {
-    maxHeight: 420,
-    overflowY: "auto",
-    borderRadius: 6,
-    border: "1px solid #eee",
-  },
-  tabla: { width: "100%", borderCollapse: "collapse" },
-  th: {
-    padding: "10px 14px",
-    background: "#f4f6f7",
-    fontWeight: "bold",
-    fontSize: "0.85rem",
-    color: "#555",
-    textAlign: "left",
-    position: "sticky",
-    top: 0,
-    zIndex: 1,
-    borderBottom: "2px solid #ddd",
-  },
-  td: {
-    padding: "9px 14px",
-    borderBottom: "1px solid #f0f0f0",
-    fontSize: "0.9rem",
-  },
-  code: {
-    background: "#f0f3f4",
-    padding: "2px 8px",
-    borderRadius: 4,
-    fontFamily: "monospace",
-  },
-  btnPrimario: {
-    padding: "10px 22px",
-    background: "#2c3e50",
-    color: "white",
-    border: "none",
-    borderRadius: 6,
-    cursor: "pointer",
-    fontWeight: "bold",
-    fontSize: "0.95rem",
-  },
-  btnSecundario: {
-    padding: "10px 22px",
-    background: "#ecf0f1",
-    color: "#2c3e50",
-    border: "1px solid #bdc3c7",
-    borderRadius: 6,
-    cursor: "pointer",
-    fontSize: "0.95rem",
-  },
-  btnElegir: {
-    padding: "5px 14px",
-    background: "#2980b9",
-    color: "white",
-    border: "none",
-    borderRadius: 4,
-    cursor: "pointer",
-    fontSize: "0.82rem",
-  },
-  btnElegido: {
-    padding: "5px 14px",
-    background: "#27ae60",
-    color: "white",
-    border: "none",
-    borderRadius: 4,
-    cursor: "default",
-    fontSize: "0.82rem",
-  },
 };

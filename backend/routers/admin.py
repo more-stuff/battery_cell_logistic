@@ -322,3 +322,32 @@ def sustituir_celda(
             exc_info=True,
         )
         raise HTTPException(status_code=500, detail="Error al sustituir la celda.")
+
+
+@router.delete("/cajas/{id_temporal}", status_code=200)
+def eliminar_caja(
+    id_temporal: str,
+    db: Session = Depends(get_db),
+    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
+):
+    caja = (
+        db.query(models.CajaReempaque)
+        .filter(models.CajaReempaque.id_temporal == id_temporal)
+        .first()
+    )
+    if not caja:
+        raise HTTPException(
+            status_code=404,
+            detail=f"❌ No existe ninguna caja con ID '{id_temporal}'.",
+        )
+    try:
+        db.delete(caja)  # cascade="all, delete-orphan" borra las celdas automáticamente
+        db.commit()
+        logger.info(f"Caja {id_temporal} eliminada por {current_user.username}")
+        return {
+            "mensaje": f"✅ Caja {id_temporal} y sus celdas eliminadas correctamente."
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"FALLO al eliminar caja {id_temporal}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error al eliminar la caja.")

@@ -11,7 +11,6 @@ import io
 from database import get_db
 import models, auth
 
-
 router = APIRouter(prefix="/admin", tags=["Consulta"])
 
 

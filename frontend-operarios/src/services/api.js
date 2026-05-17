@@ -196,8 +196,13 @@ export const getCeldasCaja = async (idTemporal) => {
   const res = await api.get(`/admin/${idTemporal}/celdas`);
   return res.data;
 };
- 
+
 export const sustituirCelda = async (payload) => {
   const res = await api.post("/admin/sustituir-celda", payload);
   return res.data;
+};
+
+export const eliminarCaja = async (id_temporal) => {
+  const response = await api.delete(`/admin/cajas/${id_temporal}`);
+  return response.data;
 };
