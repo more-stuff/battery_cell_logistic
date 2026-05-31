@@ -6,7 +6,7 @@ const API_URL = "/api";
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 15000, // 10 segundos máximo
+  timeout: 15000, // ms
 });
 
 // Antes de que salga cualquier petición, le pegamos el Token si existe
