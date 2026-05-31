@@ -55,10 +55,18 @@ def aplicar_filtros(
 
     if fecha_caducidad:
         hoy = date.today()
-        query = query.filter(
-            models.Celda.fecha_caducidad >= hoy,
-            models.Celda.fecha_caducidad <= fecha_caducidad,
-        )
+
+        if fecha_caducidad < hoy:
+            # Si la fecha seleccionada es anterior a hoy, interpretamos que se quieren ver celdas ya caducadas.
+            query = query.filter(
+                models.Celda.fecha_caducidad <= fecha_caducidad,
+            )
+        else:
+            # celdas que caducan desde hoy hasta la fecha seleccionada.
+            query = query.filter(
+                models.Celda.fecha_caducidad >= hoy,
+                models.Celda.fecha_caducidad <= fecha_caducidad,
+            )
 
     if not fecha_inicio:
         fecha_inicio = datetime.now() - timedelta(days=30)

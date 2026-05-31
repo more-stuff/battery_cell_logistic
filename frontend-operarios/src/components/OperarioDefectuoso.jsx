@@ -7,6 +7,7 @@ import Header from "./Header";
 import PanelEscaneo from "./PanelEscaneo";
 import PanelHistorico from "./PanelHistorico";
 import { Etiqueta } from "./Etiqueta";
+import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
 
 import "../styles/Operario.css";
 
@@ -31,7 +32,7 @@ export default function OperarioDefectuoso() {
     limite,
     limite_defectuosas,
     level_size,
-  } = usePaquete(usuario, true);
+  } = usePaquete(usuario, TIPOS_CAJA.DEFECTUOSA);
 
   const componentRef = useRef(null);
   const handlePrint = useReactToPrint({
@@ -126,11 +127,7 @@ export default function OperarioDefectuoso() {
       )}
 
       {/* Header con estilo de Alerta */}
-      <Header
-        usuario={usuario}
-        progreso={celdas.length}
-        total={limite_defectuosas}
-      />
+      <Header usuario={usuario} progreso={celdas.length} total={limite} />
       <div
         style={{
           background: "#c0392b",

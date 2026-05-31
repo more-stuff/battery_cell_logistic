@@ -10,15 +10,26 @@ import {
   obtenerConfiguracion,
   obtenerDmcDefectuosos,
 } from "../services/api";
+
+import {
+  TIPOS_CAJA,
+  validarCeldaPorTipoCaja,
+} from "../services/validarCeldaPorTipoCaja";
+
 import Swal from "sweetalert2";
 
-export const usePaquete = (usuario, is_defective = false) => {
+export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
+  const is_defective = tipoCaja === TIPOS_CAJA.DEFECTUOSA;
+  const is_caducidad_proxima = tipoCaja === TIPOS_CAJA.CADUCIDAD_PROXIMA;
+
   const [config, setConfig] = useState({
-    alerta_cada: 15, // Valor por defecto si falla la red
-    limite_caja: 180, // Valor por defecto
+    alerta_cada: 15,
+    limite_caja: 180,
     limite_defectuosa: 180,
+    limite_caducidad_proxima: 180,
     len_dmc: 87,
     level_size: LEVEL_SIZE,
+    caducidad_proxima_dias: 30,
   });
 
   const [huActual, setHuActual] = useState("");
@@ -40,6 +51,10 @@ export const usePaquete = (usuario, is_defective = false) => {
           alerta_cada: Number(datos.alerta_cada),
           limite_caja: Number(datos.limite_caja),
           limite_defectuosa: Number(datos.limite_defectuosa),
+          limite_caducidad_proxima: Number(
+            datos.limite_caducidad_proxima || 180,
+          ),
+          caducidad_proxima_dias: Number(datos.caducidad_proxima_dias || 30),
           len_dmc: Number(datos.len_dmc),
           level_size: LEVEL_SIZE,
         });
@@ -58,11 +73,18 @@ export const usePaquete = (usuario, is_defective = false) => {
 
   // gestion del localstorage
   const userKey = usuario ? `_${usuario}` : "";
-  const defectiveKey = is_defective ? "_defective" : "";
+  const tipoKey = `_${tipoCaja.toLowerCase()}`;
 
-  const KEY_CELDAS = `paquete_en_curso${userKey}${defectiveKey}`;
-  const KEY_HU = `hu_actual${userKey}${defectiveKey}`;
-  const KEY_FECHA = `fecha_inicio${userKey}${defectiveKey}`;
+  const KEY_CELDAS = `paquete_en_curso${userKey}${tipoKey}`;
+  const KEY_HU = `hu_actual${userKey}${tipoKey}`;
+  const KEY_FECHA = `fecha_inicio${userKey}${tipoKey}`;
+
+  const limiteActivo =
+    tipoCaja === TIPOS_CAJA.DEFECTUOSA
+      ? config.limite_defectuosa
+      : tipoCaja === TIPOS_CAJA.CADUCIDAD_PROXIMA
+        ? config.limite_caducidad_proxima
+        : config.limite_caja;
 
   useEffect(() => {
     if (!usuario) {
@@ -96,27 +118,27 @@ export const usePaquete = (usuario, is_defective = false) => {
 
     if (savedFecha) setFechaInicio(savedFecha);
     else setFechaInicio(null);
-  }, [usuario]);
+  }, [usuario, KEY_CELDAS, KEY_HU, KEY_FECHA]);
 
   // --- PERSISTENCIA (useEffect) --
   useEffect(() => {
     if (usuario) {
       localStorage.setItem(KEY_CELDAS, JSON.stringify(celdas));
     }
-  }, [celdas, usuario]); // Añadimos 'usuario' a dependencias
+  }, [celdas, usuario, KEY_CELDAS]); // Añadimos 'usuario' a dependencias
 
   useEffect(() => {
     if (usuario) {
       localStorage.setItem(KEY_HU, huActual);
     }
-  }, [huActual, usuario]);
+  }, [huActual, usuario, KEY_HU]);
 
   useEffect(() => {
     if (usuario) {
       if (fechaInicio) localStorage.setItem(KEY_FECHA, fechaInicio);
       else localStorage.removeItem(KEY_FECHA);
     }
-  }, [fechaInicio, usuario]);
+  }, [fechaInicio, usuario, KEY_FECHA]);
 
   // --- ACCIONES ---
 
@@ -143,28 +165,8 @@ export const usePaquete = (usuario, is_defective = false) => {
         error: "⚠️ Código muy corto (Faltan datos).",
         type: "short_error",
       };
-    if (
-      (celdas.length >= config.limite_caja && !is_defective) ||
-      (celdas.length >= config.limite_defectuosa && is_defective)
-    )
+    if (celdas.length >= limiteActivo) {
       return { error: "📦 Paquete lleno.", type: "duplicate_error" };
-
-    if (blacklist.has(celdaInput) && !is_defective) {
-      setCeldaInput("");
-      return {
-        error:
-          "🚨 PIEZA DEFECTUOSA: Este código DMC está marcado como defectuoso de fábrica y no puede ser procesado, dejala a parte para escanearla en la caja de defectuosos",
-        type: "defect_error",
-      };
-    }
-
-    if (!blacklist.has(celdaInput) && is_defective) {
-      setCeldaInput("");
-      return {
-        error:
-          "🚨 PIEZA no DEFECTUOSA: Este código DMC no está marcado como defectuoso de fábrica y no puede ser procesado en esta pantalla, dejala a parte para escanearla en la caja de piezas validas",
-        type: "defect_error",
-      };
     }
 
     // Evitar duplicados
@@ -207,13 +209,27 @@ export const usePaquete = (usuario, is_defective = false) => {
       setFechaInicio(new Date().toISOString());
     }
 
-    let has_revision = false;
-    if (!is_defective) {
-      has_revision =
-        config.alerta_cada === -1
-          ? celdas.length + 1 === 1 || celdas.length + 1 === config.limite_caja
-          : (celdas.length + 1) % config.alerta_cada === 0;
+    const validacionTipoCaja = validarCeldaPorTipoCaja({
+      tipoCaja,
+      dmc: celdaInput,
+      fechaCaducidad: fechaFormateada,
+      blacklist,
+      diasCaducidadProxima: config.caducidad_proxima_dias,
+    });
+
+    if (!validacionTipoCaja.ok) {
+      setCeldaInput("");
+      return {
+        error: validacionTipoCaja.error,
+        type: validacionTipoCaja.type,
+      };
     }
+
+    let has_revision =
+      config.alerta_cada === -1
+        ? celdas.length + 1 === 1 || celdas.length + 1 === limiteActivo
+        : config.alerta_cada > 0 &&
+          (celdas.length + 1) % config.alerta_cada === 0;
 
     // 4. GUARDAR
     const nuevaCelda = {
@@ -233,23 +249,15 @@ export const usePaquete = (usuario, is_defective = false) => {
     const total_celdas = nuevasCeldas.length;
     let requiereRevision = false;
 
-    // LÓGICA VARIABLE:
-    if (!is_defective) {
-      if (config.alerta_cada === -1) {
-        // MODO A: "Solo Primera y Última"
-        // Salta si es la pieza 1 O si es la pieza final (180)
-        requiereRevision =
-          total_celdas === 0 || total_celdas + 1 === config.limite_caja;
-      } else if (config.alerta_cada > 0) {
-        // MODO B: "Intervalos" (Lo que tenías antes)
-        // Salta cada X piezas (ej: 15, 30, 45...)
-        requiereRevision = (total_celdas + 1) % config.alerta_cada === 0;
-      }
+    if (config.alerta_cada === -1) {
+      requiereRevision =
+        total_celdas === 0 || total_celdas + 1 === limiteActivo;
+    } else if (config.alerta_cada > 0) {
+      requiereRevision = (total_celdas + 1) % config.alerta_cada === 0;
     }
 
     const nivelCompletado =
-      total_celdas % config.level_size === 0 &&
-      total_celdas < config.limite_caja;
+      total_celdas % config.level_size === 0 && total_celdas < limiteActivo;
     const numeroNivel = Math.floor(total_celdas / config.level_size);
 
     return {
@@ -283,18 +291,13 @@ export const usePaquete = (usuario, is_defective = false) => {
   };
 
   const enviarDatos = async () => {
-    if (
-      (celdas.length < config.limite_caja && !is_defective) ||
-      (celdas.length < config.limite_defectuosa && is_defective)
-    ) {
-      //if (celdas.length < 1) {
-      // por seguridad pero no le va a dejar igualmente
-      const faltantes = config.limite_caja - celdas.length;
+    if (celdas.length < limiteActivo) {
+      const faltantes = limiteActivo - celdas.length;
 
       Swal.fire({
         icon: "error",
         title: "⛔ CAJA INCOMPLETA",
-        text: `No se puede cerrar la caja. Faltan ${faltantes} piezas para llegar a ${config.limite_caja}.`,
+        text: `No se puede cerrar la caja. Faltan ${faltantes} piezas para llegar a ${limiteActivo}.`,
         confirmButtonColor: "#d33",
         confirmButtonText: "Entendido, seguir escaneando",
       });
@@ -309,7 +312,8 @@ export const usePaquete = (usuario, is_defective = false) => {
         usuario_id: usuario,
         fecha_inicio: fechaInicio || new Date().toISOString(),
         fecha_fin: new Date().toISOString(),
-        is_defective: is_defective,
+        is_defective: tipoCaja === TIPOS_CAJA.DEFECTUOSA,
+        tipo_caja: tipoCaja,
         celdas: celdas.map((c) => ({
           dmc_code: c.codigo_celda,
           fecha_caducidad: c.fecha_caducidad,
@@ -330,8 +334,9 @@ export const usePaquete = (usuario, is_defective = false) => {
       setCeldas([]);
       setFechaInicio(null);
       setHuActual("");
-      localStorage.removeItem("paquete_en_curso");
-      localStorage.removeItem("fecha_inicio_paquete");
+      localStorage.removeItem(KEY_CELDAS);
+      localStorage.removeItem(KEY_HU);
+      localStorage.removeItem(KEY_FECHA);
     } catch (error) {
       if (error.response && error.response.status === 409) {
         // 409 = CONFLICTO (Duplicados o Lista Negra detectados por el backend)
@@ -385,8 +390,10 @@ export const usePaquete = (usuario, is_defective = false) => {
     borrarCelda,
     borrarDesde,
     enviarDatos,
-    limite: config.limite_caja,
+    limite: limiteActivo,
+    limite_normal: config.limite_caja,
     limite_defectuosas: config.limite_defectuosa,
+    limite_caducidad_proxima: config.limite_caducidad_proxima,
     level_size: config.level_size,
   };
 };

@@ -7,6 +7,7 @@ import PanelEscaneo from "./PanelEscaneo";
 import PanelHistorico from "./PanelHistorico";
 import { Etiqueta } from "./Etiqueta";
 import Swal from "sweetalert2";
+import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
 
 import "../styles/Operario.css";
 
@@ -29,7 +30,7 @@ export default function Operario() {
     enviarDatos,
     limite,
     level_size,
-  } = usePaquete(usuario);
+  } = usePaquete(usuario, TIPOS_CAJA.NORMAL);
 
   // ── Navegación de niveles ─────────────────────────────────────────────────
   // nivelActual: nivel que se está llenando ahora mismo (0-indexed)

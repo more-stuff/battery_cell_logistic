@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas, auth
 
-
 router = APIRouter(prefix="/admin", tags=["Config"])
 
 
@@ -20,13 +19,27 @@ def obtener_configuracion(
         db.query(models.Configuracion).filter_by(clave="limite_defectuosa").first()
     )
     len_dmc = db.query(models.Configuracion).filter_by(clave="len_dmc").first()
+    caducidad_proxima = (
+        db.query(models.Configuracion).filter_by(clave="caducidad_proxima_dias").first()
+    )
+    limite_caducidad_proxima = (
+        db.query(models.Configuracion)
+        .filter_by(clave="limite_caducidad_proxima")
+        .first()
+    )
 
     # Si no existen, devolvemos valores por defecto (Safety check)
     return {
         "alerta_cada": int(conf_alerta.valor) if conf_alerta else 15,
         "limite_caja": int(conf_limite.valor) if conf_limite else 180,
         "limite_defectuosa": int(limite_defectuosa.valor) if limite_defectuosa else 180,
+        "limite_caducidad_proxima": (
+            int(limite_caducidad_proxima.valor) if limite_caducidad_proxima else 180
+        ),
         "len_dmc": int(len_dmc.valor) if len_dmc else 87,
+        "caducidad_proxima_dias": (
+            int(caducidad_proxima.valor) if caducidad_proxima else 30
+        ),
     }
 
 

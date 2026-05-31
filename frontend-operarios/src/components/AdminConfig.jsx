@@ -1,4 +1,4 @@
-import { useState, useEffect, Children } from "react";
+import { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 import {
   obtenerConfiguracion,
@@ -12,7 +12,9 @@ export const AdminConfig = () => {
     alerta_cada: "",
     limite_caja: "",
     limite_defectuosa: "",
+    limite_caducidad_proxima: "",
     len_dmc: "",
+    caducidad_proxima_dias: "",
   });
 
   const [loading, setLoading] = useState(true);
@@ -29,7 +31,9 @@ export const AdminConfig = () => {
         alerta_cada: datos.alerta_cada,
         limite_caja: datos.limite_caja,
         limite_defectuosa: datos.limite_defectuosa,
+        limite_caducidad_proxima: datos.limite_caducidad_proxima,
         len_dmc: datos.len_dmc,
+        caducidad_proxima_dias: datos.caducidad_proxima_dias,
       });
     } catch (error) {
       console.error(error);
@@ -47,7 +51,41 @@ export const AdminConfig = () => {
   const handleGuardar = async (clave) => {
     try {
       const valor = config[clave];
-      if (!valor) return;
+
+      if (valor === "" || valor === null || valor === undefined) return;
+
+      const clavesNumericasPositivas = [
+        "limite_caja",
+        "limite_defectuosa",
+        "limite_caducidad_proxima",
+        "len_dmc",
+        "caducidad_proxima_dias",
+      ];
+
+      if (
+        clavesNumericasPositivas.includes(clave) &&
+        (!Number.isInteger(Number(valor)) || Number(valor) <= 0)
+      ) {
+        Swal.fire({
+          icon: "warning",
+          title: "Valor no válido",
+          text: "El valor debe ser un número entero mayor que 0.",
+        });
+        return;
+      }
+
+      if (
+        clave === "alerta_cada" &&
+        Number(valor) !== -1 &&
+        (!Number.isInteger(Number(valor)) || Number(valor) <= 0)
+      ) {
+        Swal.fire({
+          icon: "warning",
+          title: "Valor no válido",
+          text: "La estrategia de calidad debe ser -1 o un número entero mayor que 0.",
+        });
+        return;
+      }
 
       await guardarConfiguracion(clave, valor);
 
@@ -58,6 +96,7 @@ export const AdminConfig = () => {
         timer: 2000,
         timerProgressBar: true,
       });
+
       Toast.fire({
         icon: "success",
         title: "Configuración actualizada",
@@ -118,13 +157,16 @@ export const AdminConfig = () => {
       <div style={estilos.grid}>
         {/* CONFIG 1: LÍMITE DE CAJA */}
         <div style={estilos.item}>
-          <label style={estilos.label}>📦 Límite de Piezas por Caja</label>
+          <label style={estilos.label}>
+            📦 Límite de piezas por caja normal
+          </label>
           <div style={estilos.inputGroup}>
             <input
               type="number"
               name="limite_caja"
               value={config.limite_caja}
               onChange={handleChange}
+              min="1"
               style={estilos.input}
             />
             <button
@@ -135,19 +177,20 @@ export const AdminConfig = () => {
             </button>
           </div>
           <small style={estilos.help}>
-            El operario verá la caja llena al llegar a este número.
+            El operario verá la caja normal llena al llegar a este número.
           </small>
         </div>
 
-        {/* CONFIG: LONGITUD DMC*/}
+        {/* CONFIG: LONGITUD DMC */}
         <div style={estilos.item}>
-          <label style={estilos.label}>📦 Longitud de los codigos DMC</label>
+          <label style={estilos.label}>📦 Longitud de los códigos DMC</label>
           <div style={estilos.inputGroup}>
             <input
               type="number"
               name="len_dmc"
               value={config.len_dmc}
               onChange={handleChange}
+              min="1"
               style={estilos.input}
             />
             <button
@@ -158,12 +201,12 @@ export const AdminConfig = () => {
             </button>
           </div>
           <small style={estilos.help}>
-            El operario se le exigirá que los DMC de las celdas tengan esta
-            longitud
+            Al operario se le exigirá que los DMC de las celdas tengan esta
+            longitud.
           </small>
         </div>
 
-        {/* CONFIG: LONGITUD CAJA DEFECTUOSA*/}
+        {/* CONFIG: LONGITUD CAJA DEFECTUOSA */}
         <div style={estilos.item}>
           <label style={estilos.label}>
             📦 Longitud de las cajas con celdas de DMC defectuosos
@@ -174,6 +217,7 @@ export const AdminConfig = () => {
               name="limite_defectuosa"
               value={config.limite_defectuosa}
               onChange={handleChange}
+              min="1"
               style={estilos.input}
             />
             <button
@@ -189,6 +233,58 @@ export const AdminConfig = () => {
           </small>
         </div>
 
+        {/* CONFIG: LONGITUD CAJA CADUCIDAD PRÓXIMA */}
+        <div style={estilos.item}>
+          <label style={estilos.label}>
+            📦 Longitud de las cajas de caducidad próxima
+          </label>
+          <div style={estilos.inputGroup}>
+            <input
+              type="number"
+              name="limite_caducidad_proxima"
+              value={config.limite_caducidad_proxima}
+              onChange={handleChange}
+              min="1"
+              style={estilos.input}
+            />
+            <button
+              onClick={() => handleGuardar("limite_caducidad_proxima")}
+              style={estilos.btnGuardar}
+            >
+              Guardar
+            </button>
+          </div>
+          <small style={estilos.help}>
+            El operario verá la caja de caducidad próxima llena al llegar a este
+            número.
+          </small>
+        </div>
+
+        {/* CONFIG: CADUCIDAD PRÓXIMA */}
+        <div style={estilos.item}>
+          <label style={estilos.label}>⏳ Días para caducidad próxima</label>
+          <div style={estilos.inputGroup}>
+            <input
+              type="number"
+              name="caducidad_proxima_dias"
+              value={config.caducidad_proxima_dias}
+              onChange={handleChange}
+              min="1"
+              style={estilos.input}
+            />
+            <button
+              onClick={() => handleGuardar("caducidad_proxima_dias")}
+              style={estilos.btnGuardar}
+            >
+              Guardar
+            </button>
+          </div>
+          <small style={estilos.help}>
+            Las celdas cuya caducidad esté dentro de este número de días se
+            considerarán de caducidad próxima.
+          </small>
+        </div>
+
         {/* CONFIG 2: FRECUENCIA DE REVISIÓN */}
         <div style={estilos.item}>
           <label style={estilos.label}>⚠️ Estrategia de Calidad</label>
@@ -201,16 +297,15 @@ export const AdminConfig = () => {
               value={Number(config.alerta_cada) === -1 ? "-1" : "intervalo"}
               onChange={(e) => {
                 const val = e.target.value;
-                // Si eligen "Solo Extremos", guardamos -1. Si eligen "Intervalo", ponemos 15 por defecto.
                 setConfig({ ...config, alerta_cada: val === "-1" ? -1 : 15 });
               }}
               style={estilos.input}
             >
-              <option value="intervalo">Por Intervalo (Cada X piezas)</option>
-              <option value="-1">Solo Primera y Última pieza</option>
+              <option value="intervalo">Por intervalo — cada X piezas</option>
+              <option value="-1">Solo primera y última pieza</option>
             </select>
 
-            {/* INPUT DE NÚMERO (Solo visible si es modo Intervalo) */}
+            {/* INPUT DE NÚMERO */}
             {Number(config.alerta_cada) !== -1 && (
               <div style={estilos.inputGroup}>
                 <input
@@ -219,6 +314,7 @@ export const AdminConfig = () => {
                   value={config.alerta_cada}
                   onChange={handleChange}
                   placeholder="Ej: 15"
+                  min="1"
                   style={estilos.input}
                 />
                 <span
@@ -243,14 +339,13 @@ export const AdminConfig = () => {
 
           <small style={estilos.help}>
             {Number(config.alerta_cada) === -1
-              ? "Se revisará la pieza #1 y la pieza final (#" +
-                config.limite_caja +
-                ")."
+              ? "Se revisará la pieza #1 y la última pieza de cada tipo de caja."
               : "Se revisará cada " +
                 config.alerta_cada +
                 " piezas escaneadas."}
           </small>
         </div>
+
         <div style={estilos.item}>
           <label style={estilos.label}>
             🚨 Carga Masiva de Defectuosos (CSV)
@@ -264,7 +359,7 @@ export const AdminConfig = () => {
             />
           </div>
           <small style={estilos.help}>
-            El archivo ha de ser un csv con una unica columna llamada <b>DMC</b>
+            El archivo ha de ser un csv con una única columna llamada <b>DMC</b>
             .
           </small>
         </div>

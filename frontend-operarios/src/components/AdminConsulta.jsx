@@ -1,6 +1,10 @@
 import { useState } from "react";
 import Swal from "sweetalert2";
-import { buscarPreview, descargarCSV } from "../services/api";
+import {
+  buscarPreview,
+  descargarCSV,
+  obtenerConfiguracion,
+} from "../services/api";
 import { estilos } from "../styles/AdminConsulta.styles";
 
 // Importamos los submódulos
@@ -98,6 +102,44 @@ export const AdminConsulta = () => {
       fecha_fin: hoy.toISOString().split("T")[0],
     });
   };
+  const formatDate = (date) => {
+    return date.toISOString().split("T")[0];
+  };
+
+  const aplicarCaducidadProxima = async () => {
+    try {
+      const config = await obtenerConfiguracion();
+      const dias = Number(config.caducidad_proxima_dias || 30);
+
+      const fechaLimite = new Date();
+      fechaLimite.setDate(fechaLimite.getDate() + dias);
+
+      setFiltros((prev) => ({
+        ...prev,
+        fecha_caducidad: formatDate(fechaLimite),
+      }));
+    } catch (error) {
+      console.error("Error aplicando caducidad próxima:", error);
+
+      const fechaLimite = new Date();
+      fechaLimite.setDate(fechaLimite.getDate() + 30);
+
+      setFiltros((prev) => ({
+        ...prev,
+        fecha_caducidad: formatDate(fechaLimite),
+      }));
+    }
+  };
+
+  const aplicarCaducadas = () => {
+    const ayer = new Date();
+    ayer.setDate(ayer.getDate() - 1);
+
+    setFiltros((prev) => ({
+      ...prev,
+      fecha_caducidad: formatDate(ayer),
+    }));
+  };
 
   const limpiarTodo = () => {
     setFiltros({
@@ -109,6 +151,7 @@ export const AdminConsulta = () => {
       fecha_fin: "",
       is_defective: "",
       id_temporal: "",
+      usuario_id: "",
     });
     setResultados([]);
   };
@@ -169,7 +212,12 @@ export const AdminConsulta = () => {
       <div style={estilos.cardFiltros}>
         <form onSubmit={handleSearch} style={{ width: "100%" }}>
           {/* 1. INPUTS */}
-          <AdminFiltros filtros={filtros} onChange={handleChange} />
+          <AdminFiltros
+            filtros={filtros}
+            onChange={handleChange}
+            onCaducidadProxima={aplicarCaducidadProxima}
+            onCaducadas={aplicarCaducadas}
+          />
 
           {/* 2. SELECTOR DE COLUMNAS */}
           <AdminSelector

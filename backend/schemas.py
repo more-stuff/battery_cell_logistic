@@ -111,7 +111,9 @@ class ConfigResponse(BaseModel):
     alerta_cada: int
     limite_caja: int
     limite_defectuosa: int
+    limite_caducidad_proxima: int
     len_dmc: int
+    caducidad_proxima_dias: int
 
 
 class AdminCreate(BaseModel):

@@ -47,7 +47,12 @@ class CajaReempaque(Base):
     # --- FASE 1: REEMPAQUE (Operario) ---
     id_temporal = Column(String(50), unique=True, index=True)  # TMP-XXXX
     usuario_id = Column(String(100))
-    is_defective = Column(Boolean, default=False)  # ver si la caja es defectuosa o no
+    is_defective = Column(
+        Boolean, default=False
+    )  # ya no se usa se deja por retrocompatibilidad
+    tipo_caja = Column(
+        String(30), nullable=False, default="NORMAL"
+    )  # NORMAL | DEFECTUOSA | CADUCIDAD_PROXIMA
 
     # Fechas específicas de la labor de reempaque
     fecha_inicio_reempaque = Column(DateTime)
@@ -98,7 +103,7 @@ class Celda(Base):
 
     # DATOS PROPIOS
     dmc_code = Column(String(200), unique=True, index=True)
-    fecha_caducidad = Column(Date)
+    fecha_caducidad = Column(Date, index=True)
 
     # Guardará "OK" o "REVISION"
     estado_calidad = Column(String(50), default="OK")

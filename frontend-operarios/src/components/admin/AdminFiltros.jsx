@@ -1,6 +1,11 @@
 import { estilos } from "../../styles/AdminConsulta.styles";
 
-export const AdminFiltros = ({ filtros, onChange }) => {
+export const AdminFiltros = ({
+  filtros,
+  onChange,
+  onCaducidadProxima,
+  onCaducadas,
+}) => {
   const cambiarEstado = (valor) => {
     onChange({
       target: {
@@ -21,6 +26,7 @@ export const AdminFiltros = ({ filtros, onChange }) => {
           style={estilos.inputModern}
           placeholder="Ej: A1-B2..."
         />
+
         <label style={estilos.labelModern}>HU Entrada (Proveedor)</label>
         <input
           name="hu_entrada"
@@ -58,6 +64,35 @@ export const AdminFiltros = ({ filtros, onChange }) => {
           onChange={onChange}
           style={estilos.inputModern}
         />
+
+        <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+          <button
+            type="button"
+            onClick={onCaducidadProxima}
+            style={{
+              ...estilos.btnSegment,
+              flex: 1,
+              border: "1px solid #ccc",
+              borderRadius: "8px",
+            }}
+          >
+            ⏳ Próxima
+          </button>
+
+          <button
+            type="button"
+            onClick={onCaducadas}
+            style={{
+              ...estilos.btnSegment,
+              flex: 1,
+              border: "1px solid #ccc",
+              borderRadius: "8px",
+            }}
+          >
+            ⚠️ Caducadas
+          </button>
+        </div>
+
         <label style={estilos.labelModern}>Escaneado Desde</label>
         <input
           type="date"
@@ -66,6 +101,7 @@ export const AdminFiltros = ({ filtros, onChange }) => {
           onChange={onChange}
           style={estilos.inputModern}
         />
+
         <label style={estilos.labelModern}>Escaneado Hasta</label>
         <input
           type="date"
@@ -74,6 +110,7 @@ export const AdminFiltros = ({ filtros, onChange }) => {
           onChange={onChange}
           style={estilos.inputModern}
         />
+
         <label style={estilos.labelModern}>Puesto de escaneo</label>
         <input
           name="usuario_id"
@@ -83,10 +120,10 @@ export const AdminFiltros = ({ filtros, onChange }) => {
           placeholder="Ej: PUESTO 4"
         />
       </div>
+
       <div style={estilos.columnaGrid}>
         <label style={estilos.labelModern}>Estado / Calidad</label>
         <div style={estilos.buttonGroup}>
-          {/* BOTÓN 1: TODOS */}
           <button
             type="button"
             onClick={() => cambiarEstado("")}
@@ -99,7 +136,6 @@ export const AdminFiltros = ({ filtros, onChange }) => {
             📦 Todas
           </button>
 
-          {/* BOTÓN 2: SOLO OK */}
           <button
             type="button"
             onClick={() => cambiarEstado("false")}
@@ -112,7 +148,6 @@ export const AdminFiltros = ({ filtros, onChange }) => {
             ✅ Válidas
           </button>
 
-          {/* BOTÓN 3: DEFECTUOSOS */}
           <button
             type="button"
             onClick={() => cambiarEstado("true")}

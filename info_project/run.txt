@@ -12,3 +12,24 @@ docker-compose -f docker-compose.dev.yml up --build
 
 --> prod:
 docker-compose -f docker-compose.yml up -d --build
+
+
+
+migracion db cajas defectuosas
+
+
+docker compose exec -T db psql -U postgres -d trazabilidad < backend/migrations/20260531_001_add_tipo_caja.sql
+docker compose exec -T db psql -U postgres -d trazabilidad < backend/migrations/20260531_001_rollback_tipo_caja.sql
+
+
+docker exec -it battery_cell_logistic-db-1 psql -U postgres -d trazabilidad
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_celdas_fecha_caducidad
+ON celdas (fecha_caducidad);
+
+
+
+SELECT id, id_temporal, is_defective, tipo_caja
+FROM cajas_reempaque
+WHERE is_defective IS TRUE
+  AND tipo_caja <> 'DEFECTUOSA';
