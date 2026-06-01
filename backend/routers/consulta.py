@@ -242,7 +242,10 @@ def exportar_csv(
             yield tail
 
     response = StreamingResponse(iterar_filas(), media_type="text/csv")
+
     response.headers["Content-Disposition"] = (
-        f"attachment; filename=Reporte_{date.today()}.csv"
+        f'attachment; filename="Reporte_{date.today()}.csv"'
     )
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["X-Accel-Buffering"] = "no"
     return response

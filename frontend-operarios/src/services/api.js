@@ -131,24 +131,86 @@ export const buscarPreview = async (filtros) => {
   });
   return response.data;
 };
-
 export const descargarCSV = async (filtros) => {
-  // 1. Limpiamos antes de enviar
   const params = limpiarFiltros(filtros);
+  const queryString = new URLSearchParams(params).toString();
 
-  const response = await api.get(`/admin/consulta/exportar`, {
-    params,
-    responseType: "blob",
-  });
+  const token = localStorage.getItem("admin_token");
 
-  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const response = await fetch(
+    `${API_URL}/admin/consulta/exportar?${queryString}`,
+    {
+      method: "GET",
+      timeout: 10 * 60 * 1000, // 10 minutos
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    },
+  );
+
+  if (response.status === 401) {
+    localStorage.removeItem("admin_token");
+    localStorage.removeItem("admin_user");
+
+    Swal.fire({
+      icon: "warning",
+      title: "Sesión Caducada",
+      text: "Tu sesión ha expirado por seguridad. Por favor, inicia sesión de nuevo.",
+      confirmButtonText: "Entendido, ir al Login",
+      confirmButtonColor: "#3085d6",
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      backdrop: `rgba(0,0,0,0.8)`,
+    }).then((result) => {
+      if (result.isConfirmed) {
+        window.location.reload();
+      }
+    });
+
+    return;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Error exportando CSV: ${response.status}`);
+  }
+
+  const contentDisposition = response.headers.get("Content-Disposition");
+  let filename = `Trazabilidad_${new Date().toISOString().slice(0, 10)}.csv`;
+
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename="?([^"]+)"?/);
+    if (match?.[1]) {
+      filename = match[1];
+    }
+  }
+
+  if (window.showSaveFilePicker && response.body) {
+    const fileHandle = await window.showSaveFilePicker({
+      suggestedName: filename,
+      types: [
+        {
+          description: "CSV",
+          accept: { "text/csv": [".csv"] },
+        },
+      ],
+    });
+
+    const writable = await fileHandle.createWritable();
+    await response.body.pipeTo(writable);
+    return;
+  }
+
+  // Fallback para navegadores sin showSaveFilePicker:
+  // este fallback vuelve a usar blob, pero solo si no hay otra opción.
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  const fecha = new Date().toISOString().slice(0, 10);
-  link.setAttribute("download", `Trazabilidad_${fecha}.csv`);
+  link.setAttribute("download", filename);
   document.body.appendChild(link);
   link.click();
   link.remove();
+  window.URL.revokeObjectURL(url);
 };
 
 export const obtenerConfiguracion = async () => {
