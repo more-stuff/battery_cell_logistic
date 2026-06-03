@@ -1,8 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Swal from "sweetalert2";
-import { getCeldasCaja, sustituirCelda, eliminarCaja } from "../services/api";
+import {
+  getCeldasCaja,
+  sustituirCelda,
+  eliminarCaja,
+  obtenerConfiguracion,
+  obtenerDmcDefectuosos,
+} from "../services/api";
 import { extractFechaCaducidad } from "../services/extractFecha";
 import { estilos } from "../styles/AdminModificarCaja.styles";
+import {
+  TIPOS_CAJA,
+  validarCeldaPorTipoCaja,
+} from "../services/validarCeldaPorTipoCaja";
 
 export const AdminModificarCaja = () => {
   const [idInput, setIdInput] = useState("");
@@ -12,17 +22,72 @@ export const AdminModificarCaja = () => {
   const [loading, setLoading] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
-  // Formulario nueva celda
+  const [config, setConfig] = useState({
+    caducidad_proxima_dias: 30,
+  });
+
+  const [blacklist, setBlacklist] = useState(new Set());
+
   const [nuevoDmc, setNuevoDmc] = useState("");
   const [nuevaFecha, setNuevaFecha] = useState("");
   const [nuevoEstado, setNuevoEstado] = useState("OK");
   const [fechaError, setFechaError] = useState("");
 
+  useEffect(() => {
+    const cargarReglas = async () => {
+      try {
+        const [datosConfig, listaDefectuosos] = await Promise.all([
+          obtenerConfiguracion(),
+          obtenerDmcDefectuosos(),
+        ]);
+
+        setConfig({
+          caducidad_proxima_dias: Number(
+            datosConfig.caducidad_proxima_dias || 30,
+          ),
+        });
+
+        setBlacklist(new Set(listaDefectuosos));
+      } catch (error) {
+        console.error("Error cargando reglas de validación:", error);
+      }
+    };
+
+    cargarReglas();
+  }, []);
+
+  const getTipoCajaActual = () => {
+    if (caja?.tipo_caja) return caja.tipo_caja;
+
+    return caja?.is_defective ? TIPOS_CAJA.DEFECTUOSA : TIPOS_CAJA.NORMAL;
+  };
+
+  const getLabelTipoCaja = () => {
+    const tipo = getTipoCajaActual();
+
+    if (tipo === TIPOS_CAJA.DEFECTUOSA) return "DEFECTUOSA";
+    if (tipo === TIPOS_CAJA.CADUCIDAD_PROXIMA) return "CADUCIDAD PRÓXIMA";
+    return "NORMAL";
+  };
+
+  const getEstiloTipoCaja = () => {
+    const tipo = getTipoCajaActual();
+
+    if (tipo === TIPOS_CAJA.DEFECTUOSA) return estilos.badgeDefectuosa;
+    if (tipo === TIPOS_CAJA.CADUCIDAD_PROXIMA) {
+      return estilos.badgeCaducidadProxima;
+    }
+
+    return estilos.badgeEstandar;
+  };
+
   const handleNuevoDmcChange = (valor) => {
     setNuevoDmc(valor);
     setFechaError("");
+
     if (valor.length >= 6) {
       const result = extractFechaCaducidad(valor);
+
       if (result.ok) {
         setNuevaFecha(result.fecha);
       } else {
@@ -34,13 +99,17 @@ export const AdminModificarCaja = () => {
     }
   };
 
-  // ── Buscar caja ──────────────────────────────────────────────────────────────
   const buscarCaja = async () => {
     const id = idInput.trim().toUpperCase();
     if (!id) return;
+
     setLoading(true);
+
     try {
       const data = await getCeldasCaja(id);
+
+      console.log("CAJA RECIBIDA:", data);
+
       setCaja(data);
       setFiltroDmc("");
       setCeldaElegida(null);
@@ -57,9 +126,12 @@ export const AdminModificarCaja = () => {
     setIdInput("");
     setCeldaElegida(null);
     setFiltroDmc("");
+    setNuevoDmc("");
+    setNuevaFecha("");
+    setNuevoEstado("OK");
+    setFechaError("");
   };
 
-  // ── Eliminar caja completa ───────────────────────────────────────────────────
   const handleEliminarCaja = async () => {
     const confirm = await Swal.fire({
       icon: "warning",
@@ -73,12 +145,15 @@ export const AdminModificarCaja = () => {
       cancelButtonText: "Cancelar",
       confirmButtonColor: "#e74c3c",
     });
+
     if (!confirm.isConfirmed) return;
 
     setGuardando(true);
+
     try {
       await eliminarCaja(caja.id_temporal);
       limpiar();
+
       Swal.fire({
         icon: "success",
         title: "Caja eliminada",
@@ -93,7 +168,6 @@ export const AdminModificarCaja = () => {
     }
   };
 
-  // ── Seleccionar celda ────────────────────────────────────────────────────────
   const seleccionarCelda = (celda) => {
     setCeldaElegida(celda);
     setNuevoDmc("");
@@ -102,7 +176,6 @@ export const AdminModificarCaja = () => {
     setFechaError("");
   };
 
-  // ── Confirmar sustitución ────────────────────────────────────────────────────
   const confirmarSustitucion = async () => {
     if (!nuevoDmc.trim()) {
       Swal.fire({
@@ -112,6 +185,7 @@ export const AdminModificarCaja = () => {
       });
       return;
     }
+
     if (!nuevaFecha) {
       Swal.fire({
         icon: "warning",
@@ -121,20 +195,46 @@ export const AdminModificarCaja = () => {
       return;
     }
 
+    const tipoCajaActual = getTipoCajaActual();
+
+    const validacionTipoCaja = validarCeldaPorTipoCaja({
+      tipoCaja: tipoCajaActual,
+      dmc: nuevoDmc.trim(),
+      fechaCaducidad: nuevaFecha,
+      blacklist,
+      diasCaducidadProxima: config.caducidad_proxima_dias,
+    });
+
+    if (!validacionTipoCaja.ok) {
+      Swal.fire({
+        icon: "error",
+        title: "Celda no válida para esta caja",
+        text: validacionTipoCaja.error,
+        confirmButtonColor: "#d33",
+      });
+      return;
+    }
+
     const confirm = await Swal.fire({
       icon: "question",
       title: "¿Confirmar sustitución?",
-      html: `<b>Sale:</b> <code>${celdaElegida.dmc_code}</code><br/><b>Entra:</b> <code>${nuevoDmc.trim()}</code>`,
+      html: `
+        <b>Sale:</b> <code>${celdaElegida.dmc_code}</code><br/>
+        <b>Entra:</b> <code>${nuevoDmc.trim()}</code>
+      `,
       showCancelButton: true,
       confirmButtonText: "Sí, sustituir",
       cancelButtonText: "Cancelar",
       confirmButtonColor: "#2c3e50",
     });
+
     if (!confirm.isConfirmed) return;
 
     setGuardando(true);
+
     try {
       const user = JSON.parse(localStorage.getItem("admin_user") ?? "{}");
+
       const res = await sustituirCelda({
         id_temporal: caja.id_temporal,
         dmc_antiguo: celdaElegida.dmc_code,
@@ -147,7 +247,6 @@ export const AdminModificarCaja = () => {
         usuario_id: user.username ?? "admin",
       });
 
-      // Actualizar lista local sin volver a hacer GET
       setCaja({
         ...caja,
         celdas: caja.celdas.map((c) =>
@@ -162,7 +261,12 @@ export const AdminModificarCaja = () => {
         ),
         fecha_caducidad_caja: res.nueva_fecha_caducidad_caja,
       });
+
       setCeldaElegida(null);
+      setNuevoDmc("");
+      setNuevaFecha("");
+      setNuevoEstado("OK");
+      setFechaError("");
 
       Swal.fire({
         icon: "success",
@@ -187,14 +291,15 @@ export const AdminModificarCaja = () => {
   return (
     <div style={estilos.page}>
       <h2 style={estilos.titulo}>🔧 Modificar Caja Cerrada</h2>
+
       <p style={estilos.subtitulo}>
         Busca una caja por su identificador temporal, selecciona la celda a
         sustituir e introduce los datos de la nueva unidad.
       </p>
 
-      {/* ── BUSCADOR ─────────────────────────────────────────────────────── */}
       <div style={estilos.card}>
         <label style={estilos.label}>Identificador de caja (TMP-...)</label>
+
         <div style={{ display: "flex", gap: 10 }}>
           <input
             style={estilos.input}
@@ -204,6 +309,7 @@ export const AdminModificarCaja = () => {
             onKeyDown={(e) => e.key === "Enter" && buscarCaja()}
             disabled={loading || guardando}
           />
+
           <button
             style={estilos.btnPrimario}
             onClick={buscarCaja}
@@ -211,6 +317,7 @@ export const AdminModificarCaja = () => {
           >
             {loading ? "Buscando…" : "🔍 Buscar"}
           </button>
+
           {caja && (
             <button style={estilos.btnSecundario} onClick={limpiar}>
               Limpiar
@@ -219,27 +326,22 @@ export const AdminModificarCaja = () => {
         </div>
       </div>
 
-      {/* ── INFO CAJA ────────────────────────────────────────────────────── */}
       {caja && (
         <div style={estilos.infoBanner}>
           <span>
             📦 <b>{caja.id_temporal}</b>
           </span>
+
           <span>
             Celdas: <b>{caja.total_celdas}</b>
           </span>
+
           <span>
             Caducidad caja: <b>{caja.fecha_caducidad_caja ?? "—"}</b>
           </span>
-          <span
-            style={
-              caja.is_defective
-                ? estilos.badgeDefectuosa
-                : estilos.badgeEstandar
-            }
-          >
-            {caja.is_defective ? "DEFECTUOSA" : "ESTÁNDAR"}
-          </span>
+
+          <span style={getEstiloTipoCaja()}>{getLabelTipoCaja()}</span>
+
           <button
             style={{
               ...estilos.btnPeligro,
@@ -254,7 +356,6 @@ export const AdminModificarCaja = () => {
         </div>
       )}
 
-      {/* ── LISTA DE CELDAS ──────────────────────────────────────────────── */}
       {caja && (
         <div style={estilos.card}>
           <div
@@ -266,6 +367,7 @@ export const AdminModificarCaja = () => {
             }}
           >
             <span style={estilos.label}>Celdas de la caja</span>
+
             <input
               style={{ ...estilos.input, flex: 1, marginBottom: 0 }}
               placeholder="🔍 Filtrar por DMC…"
@@ -286,6 +388,7 @@ export const AdminModificarCaja = () => {
                   <th style={estilos.th}>Acción</th>
                 </tr>
               </thead>
+
               <tbody>
                 {celdasFiltradas.length === 0 ? (
                   <tr>
@@ -303,6 +406,7 @@ export const AdminModificarCaja = () => {
                 ) : (
                   celdasFiltradas.map((celda, i) => {
                     const esElegida = celdaElegida?.dmc_code === celda.dmc_code;
+
                     return (
                       <tr
                         key={celda.dmc_code}
@@ -318,6 +422,7 @@ export const AdminModificarCaja = () => {
                         <td style={{ ...estilos.td, color: "#aaa", width: 40 }}>
                           {i + 1}
                         </td>
+
                         <td
                           style={{
                             ...estilos.td,
@@ -327,7 +432,9 @@ export const AdminModificarCaja = () => {
                         >
                           {celda.dmc_code}
                         </td>
+
                         <td style={estilos.td}>{celda.fecha_caducidad}</td>
+
                         <td style={estilos.td}>
                           <span
                             style={{
@@ -344,6 +451,7 @@ export const AdminModificarCaja = () => {
                             {celda.estado_calidad}
                           </span>
                         </td>
+
                         <td
                           style={{
                             ...estilos.td,
@@ -354,6 +462,7 @@ export const AdminModificarCaja = () => {
                         >
                           {celda.hu_origen ?? "—"}
                         </td>
+
                         <td style={{ ...estilos.td, textAlign: "center" }}>
                           <button
                             style={
@@ -375,7 +484,6 @@ export const AdminModificarCaja = () => {
         </div>
       )}
 
-      {/* ── FORMULARIO NUEVA CELDA ────────────────────────────────────────── */}
       {celdaElegida && (
         <div style={{ ...estilos.card, borderLeft: "4px solid #2980b9" }}>
           <h3 style={{ margin: "0 0 16px", color: "#2c3e50" }}>
@@ -386,6 +494,7 @@ export const AdminModificarCaja = () => {
           <div style={estilos.formGrid}>
             <div>
               <label style={estilos.label}>Nuevo DMC *</label>
+
               <input
                 style={estilos.input}
                 placeholder="Escanea o escribe el nuevo DMC"
@@ -393,11 +502,13 @@ export const AdminModificarCaja = () => {
                 onChange={(e) => handleNuevoDmcChange(e.target.value)}
                 autoFocus
               />
+
               {fechaError && <p style={estilos.fechaError}>⚠️ {fechaError}</p>}
             </div>
 
             <div>
               <label style={estilos.label}>Estado de calidad</label>
+
               <select
                 style={estilos.input}
                 value={nuevoEstado}
@@ -417,6 +528,7 @@ export const AdminModificarCaja = () => {
             >
               {guardando ? "Guardando…" : "✅ Confirmar sustitución"}
             </button>
+
             <button
               style={estilos.btnSecundario}
               onClick={() => setCeldaElegida(null)}

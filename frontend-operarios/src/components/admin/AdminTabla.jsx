@@ -21,12 +21,23 @@ export const AdminTabla = ({
   const formatValor = (row, colId) => {
     let valor = row[colId];
 
+    if (colId === "tipo_caja") {
+      if (valor === "CADUCIDAD_PROXIMA") return "Caducidad próxima";
+      if (valor === "DEFECTUOSA") return "Defectuosa";
+      if (valor === "NORMAL") return "Normal";
+
+      // Fallback por compatibilidad si alguna fila vieja no trae tipo_caja
+      return row.is_defective ? "Defectuosa" : "Normal";
+    }
+
     if (colId.includes("fecha") || colId.includes("caducidad")) {
       return valor ? new Date(valor).toLocaleDateString() : "-";
     }
+
     if (colId.includes("defective")) {
       return valor ? "defectuosa" : "válida";
     }
+
     return valor || "";
   };
 
@@ -49,15 +60,19 @@ export const AdminTabla = ({
               ))}
             </tr>
           </thead>
+
           <tbody>
             {resultados.map((row, index) => {
-              // 👇 1. DETECTAMOS SI ES REVISIÓN
-              // (Comprobamos ambas claves por seguridad: 'calidad' o 'estado_calidad')
-              const esDefectuosa = row.is_defective;
+              const tipoCaja =
+                row.tipo_caja || (row.is_defective ? "DEFECTUOSA" : "NORMAL");
 
-              // 👇 2. DEFINIMOS EL COLOR DE FONDO
-              let bgColor = index % 2 === 0 ? "#ffffff" : "#f9fafb"; // Default alternado
-              if (esDefectuosa) bgColor = "#fee2e2"; // Rojo suave si es revisión
+              const esDefectuosa = tipoCaja === "DEFECTUOSA";
+              const esCaducidadProxima = tipoCaja === "CADUCIDAD_PROXIMA";
+
+              let bgColor = index % 2 === 0 ? "#ffffff" : "#f9fafb";
+
+              if (esDefectuosa) bgColor = "#fee2e2";
+              if (esCaducidadProxima) bgColor = "#fff7ed";
 
               return (
                 <tr
@@ -65,21 +80,23 @@ export const AdminTabla = ({
                   style={{
                     backgroundColor: bgColor,
                     borderBottom: "1px solid #e5e7eb",
-                    // 👇 3. BORDE ROJO LATERAL SI ES REVISIÓN
-                    borderLeft: esDefectuosa ? "5px solid #ef4444" : "none",
+                    borderLeft: esDefectuosa
+                      ? "5px solid #ef4444"
+                      : esCaducidadProxima
+                        ? "5px solid #f59e0b"
+                        : "none",
                   }}
                 >
                   {columnasActivas.map((col) => (
                     <td key={col.id} style={estilos.tdModern}>
-                      {/* Lógica especial para mostrar badges bonitos en la columna de Calidad/Status */}
                       {col.id === "status" ||
                       col.id === "estado_calidad" ||
                       col.id === "calidad" ? (
                         <span
                           style={
-                            row[col.id] === "OK" || row[col.id] === "PENDING" // PENDING o OK en verde/neutro
+                            row[col.id] === "OK" || row[col.id] === "PENDING"
                               ? estilos.badgeOK
-                              : row[col.id] === "REVISION" // REVISION en rojo fuerte
+                              : row[col.id] === "REVISION"
                                 ? {
                                     ...estilos.badgeNeutral,
                                     backgroundColor: "#ef4444",

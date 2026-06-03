@@ -29,6 +29,7 @@ def aplicar_filtros(
     fecha_fin,
     fecha_caducidad,
     is_defective,
+    tipo_caja,
     id_temporal,
     usuario_id,
 ):
@@ -77,7 +78,10 @@ def aplicar_filtros(
             models.CajaReempaque.fecha_fin_reempaque.between(fecha_inicio, dt_fin)
         )
 
-    if is_defective is not None:
+    if tipo_caja:
+        query = query.filter(models.CajaReempaque.tipo_caja == tipo_caja)
+    elif is_defective is not None:
+        # Fallback retrocompatible por si alguna pantalla vieja sigue mandando is_defective
         query = query.filter(models.CajaReempaque.is_defective == is_defective)
 
     if usuario_id:
@@ -104,6 +108,8 @@ def construir_fila(celda, caja, palet):
         "caducidad_antigua": caja.fecha_caducidad_caja if caja else None,
         "fecha_almacenamiento": getattr(caja, "fecha_almacenamiento", None),
         "is_defective": getattr(caja, "is_defective", False),
+        "tipo_caja": getattr(caja, "tipo_caja", None)
+        or ("DEFECTUOSA" if getattr(caja, "is_defective", False) else "NORMAL"),
         "hu_silena": getattr(caja, "hu_silena_outbound", "") or "",
         "ubicacion": getattr(caja, "ubicacion_estanteria", "") or "",
         "n_salida": getattr(caja, "numero_salida_delivery", "") or "",
@@ -122,6 +128,7 @@ def buscar_preview(
     fecha_fin: Optional[datetime] = None,
     fecha_caducidad: Optional[date] = None,
     is_defective: Optional[bool] = None,
+    tipo_caja: Optional[str] = None,
     id_temporal: Optional[str] = None,
     usuario_id: Optional[str] = None,
     cols: Optional[str] = Query(None),
@@ -138,6 +145,7 @@ def buscar_preview(
         fecha_fin,
         fecha_caducidad,
         is_defective,
+        tipo_caja,
         id_temporal,
         usuario_id,
     )
@@ -175,6 +183,7 @@ def exportar_csv(
     fecha_fin: Optional[datetime] = None,
     fecha_caducidad: Optional[date] = None,
     is_defective: Optional[bool] = None,
+    tipo_caja: Optional[str] = None,
     id_temporal: Optional[str] = None,
     usuario_id: Optional[str] = None,
     cols: Optional[str] = Query(None),
@@ -199,6 +208,7 @@ def exportar_csv(
         fecha_fin,
         fecha_caducidad,
         is_defective,
+        tipo_caja,
         id_temporal,
         usuario_id,
     )

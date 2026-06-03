@@ -42,8 +42,8 @@ const COLUMNAS_DISPONIBLES = [
   { id: "ubicacion", label: "Ubicación", group: "outbound_area" },
   { id: "fecha_almacenamiento", label: "F. Almacén", group: "outbound_area" },
   {
-    id: "is_defective",
-    label: "Celda defectuosa/valida",
+    id: "tipo_caja",
+    label: "Tipo de caja",
     group: "outbound_area",
   },
 
@@ -61,6 +61,7 @@ export const AdminConsulta = () => {
     fecha_caducidad: "",
     fecha_inicio: "",
     fecha_fin: "",
+    tipo_caja: "",
     is_defective: "",
     id_temporal: "",
     usuario_id: "",
@@ -149,13 +150,13 @@ export const AdminConsulta = () => {
       fecha_caducidad: "",
       fecha_inicio: "",
       fecha_fin: "",
+      tipo_caja: "",
       is_defective: "",
       id_temporal: "",
       usuario_id: "",
     });
     setResultados([]);
   };
-
   // --- HANDLERS ---
   const handleSearch = async (e) => {
     e.preventDefault();

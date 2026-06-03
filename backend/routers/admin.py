@@ -213,6 +213,7 @@ def get_celdas_caja(
         fecha_caducidad_caja=caja.fecha_caducidad_caja,
         is_defective=caja.is_defective,
         total_celdas=len(celdas_detalle),
+        tipo_caja=getattr(caja, "tipo_caja", None),
         celdas=celdas_detalle,
     )
 

@@ -71,6 +71,15 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
         # (Aquí va tu código de generar ID, lo resumo)
         timestamp_code = int(datetime.now().timestamp())
         nuevo_id = f"TMP-{hex(timestamp_code)[2:].upper()}"
+        tipo_caja = datos.tipo_caja or (
+            "DEFECTUOSA" if datos.is_defective else "NORMAL"
+        )
+
+        if tipo_caja not in ("NORMAL", "DEFECTUOSA", "CADUCIDAD_PROXIMA"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tipo de caja no válido: {tipo_caja}",
+            )
 
         # 3. CREAR LA CAJA (Con los nuevos nombres de campos)
         nueva_caja = models.CajaReempaque(
@@ -81,7 +90,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
             fecha_fin_reempaque=datos.fecha_fin,
             # Guardamos la caducidad calculada
             fecha_caducidad_caja=peor_caducidad,
-            is_defective=datos.is_defective,
+            tipo_caja=tipo_caja,
             # El resto (Outbound, Almacén) se queda en NULL automáticamente
         )
 

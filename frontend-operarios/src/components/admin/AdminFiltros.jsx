@@ -6,10 +6,10 @@ export const AdminFiltros = ({
   onCaducidadProxima,
   onCaducadas,
 }) => {
-  const cambiarEstado = (valor) => {
+  const cambiarTipoCaja = (valor) => {
     onChange({
       target: {
-        name: "is_defective",
+        name: "tipo_caja",
         value: valor,
       },
     });
@@ -122,14 +122,14 @@ export const AdminFiltros = ({
       </div>
 
       <div style={estilos.columnaGrid}>
-        <label style={estilos.labelModern}>Estado / Calidad</label>
+        <label style={estilos.labelModern}>Tipo de caja</label>
         <div style={estilos.buttonGroup}>
           <button
             type="button"
-            onClick={() => cambiarEstado("")}
+            onClick={() => cambiarTipoCaja("")}
             style={{
               ...estilos.btnSegment,
-              ...(filtros.is_defective === "" ? estilos.activeTodos : {}),
+              ...(filtros.tipo_caja === "" ? estilos.activeTodos : {}),
               borderRight: "1px solid #ccc",
             }}
           >
@@ -138,25 +138,39 @@ export const AdminFiltros = ({
 
           <button
             type="button"
-            onClick={() => cambiarEstado("false")}
+            onClick={() => cambiarTipoCaja("NORMAL")}
             style={{
               ...estilos.btnSegment,
-              ...(filtros.is_defective === "false" ? estilos.activeOK : {}),
+              ...(filtros.tipo_caja === "NORMAL" ? estilos.activeOK : {}),
               borderRight: "1px solid #ccc",
             }}
           >
-            ✅ Válidas
+            ✅ Normal
           </button>
 
           <button
             type="button"
-            onClick={() => cambiarEstado("true")}
+            onClick={() => cambiarTipoCaja("DEFECTUOSA")}
             style={{
               ...estilos.btnSegment,
-              ...(filtros.is_defective === "true" ? estilos.activeNOK : {}),
+              ...(filtros.tipo_caja === "DEFECTUOSA" ? estilos.activeNOK : {}),
+              borderRight: "1px solid #ccc",
             }}
           >
-            ❌ Defectuosas
+            ❌ Defectuosa
+          </button>
+
+          <button
+            type="button"
+            onClick={() => cambiarTipoCaja("CADUCIDAD_PROXIMA")}
+            style={{
+              ...estilos.btnSegment,
+              ...(filtros.tipo_caja === "CADUCIDAD_PROXIMA"
+                ? estilos.activeTodos
+                : {}),
+            }}
+          >
+            ⏳ Próxima
           </button>
         </div>
       </div>

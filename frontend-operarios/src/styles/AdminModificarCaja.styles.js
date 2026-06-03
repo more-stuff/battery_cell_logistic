@@ -148,6 +148,14 @@ export const estilos = {
     borderRadius: 12,
     fontSize: "0.8rem",
   },
+  badgeCaducidadProxima: {
+    background: "#f39c12",
+    color: "white",
+    padding: "4px 10px",
+    borderRadius: "999px",
+    fontWeight: "bold",
+    fontSize: "0.8rem",
+  },
   fechaError: {
     color: "#e74c3c",
     fontSize: "0.8rem",

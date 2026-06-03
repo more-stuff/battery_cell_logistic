@@ -18,7 +18,8 @@ class ReempaqueInput(BaseModel):
     celdas: List[CeldaInput]  # Lista de 180 celdas
     fecha_inicio: datetime
     fecha_fin: datetime
-    is_defective: bool
+    is_defective: Optional[bool] = False
+    tipo_caja: Optional[str] = None
 
 
 # Lo que devuelve el servidor al operario (para imprimir la etiqueta)
@@ -83,6 +84,7 @@ class CajaConCeldas(BaseModel):
     is_defective: bool
     total_celdas: int
     celdas: List[CeldaDetalle]
+    tipo_caja: Optional[str] = None
 
 
 # Petición de sustitución de una celda
