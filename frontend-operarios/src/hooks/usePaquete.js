@@ -37,7 +37,11 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
   const [celdas, setCeldas] = useState([]);
   const [fechaInicio, setFechaInicio] = useState(null);
   const [enviando, setEnviando] = useState(false);
-  const [idGuardado, setIdGuardado] = useState(null); //  Para guardar el ID que nos devuelve el servidor
+
+  // guardar info que nos devuelve el server para las etiquetas
+  const [idGuardado, setIdGuardado] = useState(null);
+  const [fechaCaducidadCajaGuardada, setFechaCaducidadCajaGuardada] =
+    useState(null);
 
   const [blacklist, setBlacklist] = useState(new Set());
 
@@ -288,6 +292,7 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
     setCeldaInput(""); // Limpia el input de pieza
     setCeldas([]); // <--- ESTA ES LA CLAVE: vacía el array de la tabla
     setIdGuardado(null); // Quita el modal de éxito
+    setFechaCaducidadCajaGuardada(null); // Limpia la fecha de caducidad guardada
   };
 
   const enviarDatos = async () => {
@@ -327,6 +332,7 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
       console.log("RESPUESTA DEL SERVIDOR:", respuesta);
       // ÉXITO: Guardamos el ID para mostrarlo en el modal
       setIdGuardado(respuesta.id_temporal);
+      setFechaCaducidadCajaGuardada(respuesta.fecha_caducidad_caja ?? null);
 
       await refrescarListaNegra();
 
@@ -385,6 +391,7 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
     celdas,
     enviando,
     idGuardado,
+    fechaCaducidadCajaGuardada,
     resetProceso,
     agregarCelda,
     borrarCelda,

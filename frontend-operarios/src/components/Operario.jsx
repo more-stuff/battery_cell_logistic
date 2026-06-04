@@ -23,6 +23,7 @@ export default function Operario() {
     celdas,
     enviando,
     idGuardado,
+    fechaCaducidadCajaGuardada,
     resetProceso,
     agregarCelda,
     borrarCelda,
@@ -137,6 +138,7 @@ export default function Operario() {
                   id={idGuardado}
                   fecha={new Date().toLocaleDateString()}
                   op_id={usuario}
+                  fechaCaducidadCaja={fechaCaducidadCajaGuardada}
                 />
               </div>
             </div>
@@ -222,6 +224,7 @@ export default function Operario() {
             id={idGuardado ?? ""}
             fecha={new Date().toLocaleDateString()}
             op_id={usuario}
+            fechaCaducidadCaja={fechaCaducidadCajaGuardada}
           />
         </div>
       </div>

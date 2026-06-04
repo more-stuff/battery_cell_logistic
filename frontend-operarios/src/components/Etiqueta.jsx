@@ -3,7 +3,7 @@ import React from "react";
 import Barcode from "react-barcode";
 
 // Ya no necesitamos forwardRef ni ref aquí, porque el 'padre' se encarga de imprimir
-export const Etiqueta = ({ id, fecha, op_id }) => {
+export const Etiqueta = ({ id, fecha, op_id, fechaCaducidadCaja }) => {
   return (
     <div style={estilos.contenedor}>
       <div style={estilos.cabecera}>
@@ -28,6 +28,10 @@ export const Etiqueta = ({ id, fecha, op_id }) => {
       {/* Sección para el OP ID */}
       <div style={estilos.infoExtra}>
         <strong>Operario id:</strong> {op_id || "N/A"}
+      </div>
+
+      <div style={estilos.infoExtra}>
+        <strong>Caducidad caja:</strong> {fechaCaducidadCaja || "N/A"}
       </div>
 
       <div style={estilos.footer}>

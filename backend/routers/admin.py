@@ -2,24 +2,20 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
-    Query,
-    UploadFile,
-    File,
     status,
 )
 import logging
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, or_, and_, text
-from typing import Optional
-from pydantic import BaseModel
-from datetime import date, datetime, time, timedelta
-from urllib.parse import unquote
-import pandas as pd
+from sqlalchemy import func
 
-import csv
-import io
+from box_rules import (
+    TIPO_NORMAL,
+    TIPO_DEFECTUOSA,
+    TIPOS_CAJA_VALIDOS,
+    validar_celda_para_tipo_caja,
+    get_config_int,
+)
 
 
 from database import get_db
@@ -236,6 +232,22 @@ def sustituir_celda(
                 status_code=404,
                 detail=f"Caja '{datos.id_temporal}' no encontrada.",
             )
+        tipo_caja = getattr(caja, "tipo_caja", None) or (
+            TIPO_DEFECTUOSA if caja.is_defective else TIPO_NORMAL
+        )
+
+        if tipo_caja not in TIPOS_CAJA_VALIDOS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tipo de caja no válido: {tipo_caja}",
+            )
+
+        dias_caducidad_proxima = get_config_int(
+            db,
+            models,
+            "caducidad_proxima_dias",
+            30,
+        )
 
         # --- PASO 2: Buscar la celda antigua dentro de esa caja ---
         # El filtro doble (dmc_code index + caja_reempaque_id index) es O(log n).
@@ -260,23 +272,43 @@ def sustituir_celda(
         if datos.nueva_celda.dmc_code != datos.dmc_antiguo:
             # Solo los campos necesarios, no toda la fila
             conflicto = (
-                db.query(models.Celda.caja_reempaque_id)
+                db.query(models.Celda.dmc_code, models.CajaReempaque.id_temporal)
+                .join(
+                    models.CajaReempaque,
+                    models.CajaReempaque.id == models.Celda.caja_reempaque_id,
+                )
                 .filter(models.Celda.dmc_code == datos.nueva_celda.dmc_code)
                 .first()
             )
+
             if conflicto:
-                id_temporal_conflicto = (
-                    db.query(models.CajaReempaque.id_temporal)
-                    .filter(models.CajaReempaque.id == conflicto.caja_reempaque_id)
-                    .scalar()
-                )
                 raise HTTPException(
                     status_code=409,
                     detail=(
                         f"El nuevo DMC '{datos.nueva_celda.dmc_code}' ya existe "
-                        f"en la caja '{id_temporal_conflicto or 'Desconocida'}'. No se puede usar."
+                        f"en la caja '{conflicto.id_temporal or 'Desconocida'}'. No se puede usar."
                     ),
                 )
+        dmc_defectuoso = (
+            db.query(models.DMCDefectuoso.dmc_code)
+            .filter(models.DMCDefectuoso.dmc_code == datos.nueva_celda.dmc_code)
+            .first()
+        )
+
+        # comprobamos que la nueva celda cumple las reglas del tipo de caja
+        try:
+            validar_celda_para_tipo_caja(
+                tipo_caja=tipo_caja,
+                dmc=datos.nueva_celda.dmc_code,
+                fecha_caducidad=datos.nueva_celda.fecha_caducidad,
+                dmc_es_defectuoso=dmc_defectuoso is not None,
+                dias_caducidad_proxima=dias_caducidad_proxima,
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=409,
+                detail=str(e),
+            )
 
         # --- PASO 5: Actualizar la celda ---
 
