@@ -1,7 +1,7 @@
 # frontend-operarios/Dockerfile
 
 # Etapa 1: Construir con Node
-FROM node:18-alpine as build
+FROM node:20-alpine as build
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
