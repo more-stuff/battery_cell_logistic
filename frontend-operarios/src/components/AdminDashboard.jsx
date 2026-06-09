@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AdminIncoming } from "./AdminIncoming";
 import { AdminOutbound } from "./AdminOutbound";
 import { AdminConsulta } from "./AdminConsulta";
@@ -6,33 +6,38 @@ import { AdminConfig } from "./AdminConfig";
 import { AdminLogin } from "./AdminLogin";
 import { AdminModificarCaja } from "./AdminModificarCaja";
 
+const getSavedUser = () => {
+  const savedUser = localStorage.getItem("admin_user");
+  const savedToken = localStorage.getItem("admin_token");
+
+  if (!savedUser || !savedToken) return null;
+
+  try {
+    return JSON.parse(savedUser);
+  } catch {
+    localStorage.removeItem("admin_user");
+    localStorage.removeItem("admin_token");
+    return null;
+  }
+};
+
+const getInitialTab = (user) => {
+  if (user?.rol === "operario_linea") return "modificar";
+  return "incoming";
+};
+
 export const AdminDashboard = () => {
-  const [user, setUser] = useState(null);
-  const [pestanaActual, setPestanaActual] = useState("incoming");
+  const [user, setUser] = useState(() => getSavedUser());
 
-  // AL CARGAR: Comprobar si ya estamos logueados de antes
-  useEffect(() => {
-    const savedUser = localStorage.getItem("admin_user");
-    const savedToken = localStorage.getItem("admin_token");
+  const [pestanaActual, setPestanaActual] = useState(() =>
+    getInitialTab(getSavedUser()),
+  );
 
-    if (savedUser && savedToken) {
-      const parsedUser = JSON.parse(savedUser);
-      setUser(parsedUser);
-
-      if (parsedUser.rol === "operario_linea") {
-        setPestanaActual("modificar");
-      }
-    }
-  }, []);
+  const esOperarioLinea = user?.rol === "operario_linea";
 
   const handleLoginSuccess = (userData) => {
     setUser(userData);
-
-    if (userData.rol === "operario_linea") {
-      setPestanaActual("modificar");
-    } else {
-      setPestanaActual("incoming");
-    }
+    setPestanaActual(getInitialTab(userData));
   };
 
   const handleLogout = () => {
@@ -42,16 +47,11 @@ export const AdminDashboard = () => {
     setPestanaActual("incoming");
   };
 
-  // SI NO HAY USUARIO -> MOSTRAMOS LOGIN
   if (!user) {
     return <AdminLogin onLoginSuccess={handleLoginSuccess} />;
   }
 
-  const esOperarioLinea = user.rol === "operario_linea";
-
-  // SI HAY USUARIO -> MOSTRAMOS DASHBOARD
   const renderizarContenido = () => {
-    // Protección extra: el operario_linea solo puede ver Modificar Caja
     if (esOperarioLinea) {
       return <AdminModificarCaja />;
     }
@@ -83,7 +83,6 @@ export const AdminDashboard = () => {
 
   return (
     <div style={estilos.layout}>
-      {/* === BARRA LATERAL === */}
       <div style={estilos.sidebar}>
         <div style={estilos.logo}>
           {esOperarioLinea ? "🔧 LÍNEA" : "⚙️ ADMIN PANEL"}
@@ -102,10 +101,6 @@ export const AdminDashboard = () => {
         </div>
 
         <nav style={estilos.menu}>
-          {/* 
-            El operario_linea NO ve Incoming, Outbound ni Consulta.
-            Solo ve Modificar Caja.
-          */}
           {!esOperarioLinea && (
             <>
               <button
@@ -156,10 +151,8 @@ export const AdminDashboard = () => {
             </button>
           )}
 
-          {/* ESPACIADOR */}
           <div style={{ flex: 1 }}></div>
 
-          {/* SOLO VISIBLE PARA SUPERADMIN */}
           {!esOperarioLinea && user.rol === "superadmin" && (
             <button
               onClick={() => setPestanaActual("config")}
@@ -171,7 +164,6 @@ export const AdminDashboard = () => {
             </button>
           )}
 
-          {/* BOTÓN SALIR */}
           <button
             onClick={handleLogout}
             style={{
@@ -185,7 +177,6 @@ export const AdminDashboard = () => {
         </nav>
       </div>
 
-      {/* === CONTENIDO === */}
       <div style={estilos.contenido}>{renderizarContenido()}</div>
     </div>
   );
