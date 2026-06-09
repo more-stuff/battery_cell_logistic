@@ -10,6 +10,13 @@ import models, database
 import os
 from dotenv import load_dotenv
 
+# ROLES
+
+ROL_ADMIN = "admin"
+ROL_SUPERADMIN = "superadmin"
+ROL_OPERARIO_LINEA = "operario_linea"
+
+
 # --- CONFIGURACIÓN ---
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY", "fallo_seguridad_clave_por_defecto")
@@ -74,6 +81,21 @@ def get_current_admin(
     if user is None:
         raise credentials_exception
     return user
+
+
+def require_roles(*roles_permitidos: str):
+    def role_checker(
+        current_user=Depends(get_current_admin),
+    ):
+        if current_user.rol not in roles_permitidos:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permisos para realizar esta acción.",
+            )
+
+        return current_user
+
+    return role_checker
 
 
 # 2. Verificar si es SUPERADMIN (Para configuración)

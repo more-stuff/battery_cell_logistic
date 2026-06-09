@@ -93,7 +93,9 @@ def registrar_admin(usuario: schemas.AdminCreate, db: Session = Depends(get_db))
 def actualizar_datos_entrada(
     datos: schemas.IncomingData,
     db: Session = Depends(get_db),
-    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
+    current_user: models.UsuarioAdmin = Depends(
+        auth.require_roles(auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
+    ),
 ):
     # 1. Buscamos el Palet por su HU
     palet = (
@@ -140,7 +142,9 @@ def actualizar_datos_entrada(
 def registrar_salida(
     datos: schemas.OutboundData,
     db: Session = Depends(get_db),
-    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
+    current_user: models.UsuarioAdmin = Depends(
+        auth.require_roles(auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
+    ),
 ):
     # 1. Buscamos la caja por su ID Temporal (TMP-...)
     caja = (
@@ -177,7 +181,9 @@ def registrar_salida(
 def get_celdas_caja(
     id_temporal: str,
     db: Session = Depends(get_db),
-    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
+    current_user: models.UsuarioAdmin = Depends(
+        auth.require_roles(auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
+    ),
 ):
     # joinedload: carga la caja Y sus celdas en UNA SOLA query con JOIN.
     # Sin esto SQLAlchemy haria 2 queries separadas (lazy load por defecto).
@@ -218,7 +224,9 @@ def get_celdas_caja(
 def sustituir_celda(
     datos: schemas.SustitucionInput,
     db: Session = Depends(get_db),
-    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
+    current_user: models.UsuarioAdmin = Depends(
+        auth.require_roles(auth.ROL_OPERARIO_LINEA, auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
+    ),
 ):
     try:
         # --- PASO 1: Buscar la caja ---
@@ -310,10 +318,30 @@ def sustituir_celda(
                 detail=str(e),
             )
 
-        # --- PASO 5: Actualizar la celda ---
+        # --- PASO 5: Asegurar HU de origen de la nueva celda ---
+
+        nuevo_hu_origen = datos.nueva_celda.hu_origen
+
+        if not nuevo_hu_origen:
+            raise HTTPException(
+                status_code=400,
+                detail="El HU de origen de la nueva celda es obligatorio.",
+            )
+
+        palet_existente = (
+            db.query(models.PaletEntrada.hu_proveedor)
+            .filter(models.PaletEntrada.hu_proveedor == nuevo_hu_origen)
+            .first()
+        )
+
+        if not palet_existente:
+            db.add(models.PaletEntrada(hu_proveedor=nuevo_hu_origen))
+
+        # --- PASO 6: Actualizar la celda ---
 
         celda_antigua.dmc_code = datos.nueva_celda.dmc_code
         celda_antigua.fecha_caducidad = datos.nueva_celda.fecha_caducidad
+        celda_antigua.hu_origen_id = nuevo_hu_origen
         celda_antigua.estado_calidad = datos.nueva_celda.estado_calidad or "OK"
 
         # --- PASO 6: Recalcular fecha_caducidad_caja con SELECT MIN() en SQL ---
@@ -361,7 +389,9 @@ def sustituir_celda(
 def eliminar_caja(
     id_temporal: str,
     db: Session = Depends(get_db),
-    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
+    current_user: models.UsuarioAdmin = Depends(
+        auth.require_roles(auth.ROL_OPERARIO_LINEA, auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
+    ),
 ):
     caja = (
         db.query(models.CajaReempaque)

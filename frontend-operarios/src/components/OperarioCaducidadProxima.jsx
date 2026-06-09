@@ -1,23 +1,20 @@
-// OperarioDefectuoso.jsx
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useReactToPrint } from "react-to-print";
-import { usePaquete } from "../hooks/usePaquete"; // Reutilizamos tu hook
-import Swal from "sweetalert2";
-
+import { usePaquete } from "../hooks/usePaquete";
 import Login from "./Login";
 import Header from "./Header";
 import PanelEscaneo from "./PanelEscaneo";
 import PanelHistorico from "./PanelHistorico";
 import { Etiqueta } from "./Etiqueta";
+import Swal from "sweetalert2";
 import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
 
 import "../styles/Operario.css";
 
-export default function OperarioDefectuoso() {
+export default function OperarioCaducidadProxima() {
   const [usuario, setUsuario] = useState("");
   const [logueado, setLogueado] = useState(false);
 
-  // Hook original
   const {
     huActual,
     setHuActual,
@@ -26,54 +23,20 @@ export default function OperarioDefectuoso() {
     celdas,
     enviando,
     idGuardado,
+    fechaCaducidadCajaGuardada,
     resetProceso,
-    agregarCelda, // <--- ESTA ES LA QUE VAMOS A INTERCEPTAR
+    agregarCelda,
     borrarCelda,
     borrarDesde,
     enviarDatos,
     limite,
-    limite_defectuosas,
     level_size,
-  } = usePaquete(usuario, TIPOS_CAJA.DEFECTUOSA);
-
-  const componentRef = useRef(null);
-  const handlePrint = useReactToPrint({
-    contentRef: componentRef,
-    documentTitle: `Etiqueta_SCRAP_${idGuardado}`,
-  });
-  const handleVaciarLista = () => {
-    Swal.fire({
-      title: "¿Vaciar toda la lista?",
-      text: "Perderás todos los escaneos de la sesión actual.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: "Sí, vaciar todo",
-      cancelButtonText: "Cancelar",
-    }).then((result) => {
-      if (result.isConfirmed) {
-        resetProceso();
-        const Toast = Swal.mixin({
-          toast: true,
-          position: "top-end",
-          showConfirmButton: false,
-          timer: 2000,
-          timerProgressBar: true,
-        });
-        Toast.fire({ icon: "success", title: "Lista vaciada correctamente" });
-      }
-    });
-  };
-
-  // Calculos visuales
-  // ── Navegación de niveles ─────────────────────────────────────────────────
-  const limiteActivo = limite_defectuosas ?? limite;
+  } = usePaquete(usuario, TIPOS_CAJA.CADUCIDAD_PROXIMA);
 
   const nivelActual =
     celdas.length === 0 ? 0 : Math.floor((celdas.length - 1) / level_size);
 
-  const totalNiveles = Math.ceil(limiteActivo / level_size);
+  const totalNiveles = Math.ceil(limite / level_size);
 
   const [nivelVisible, setNivelVisible] = useState(0);
 
@@ -91,40 +54,80 @@ export default function OperarioDefectuoso() {
     setNivelVisible((v) => Math.min(nivelActual, v + 1));
 
   const indexIniciNivell = nivelVisible * level_size;
-
   const celdas_visuales = celdas.slice(
     indexIniciNivell,
     indexIniciNivell + level_size,
   );
+
+  const componentRef = useRef(null);
+
+  const handlePrint = useReactToPrint({
+    contentRef: componentRef,
+    documentTitle: `Etiqueta_CADUCIDAD_PROXIMA_${idGuardado}`,
+    onAfterPrint: () => console.log("Impresión lanzada"),
+  });
+
+  const handleVaciarLista = () => {
+    Swal.fire({
+      title: "¿Vaciar toda la lista?",
+      text: "Perderás todos los escaneos de la sesión actual.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Sí, vaciar todo",
+      cancelButtonText: "Cancelar",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        resetProceso();
+
+        const Toast = Swal.mixin({
+          toast: true,
+          position: "top-end",
+          showConfirmButton: false,
+          timer: 2000,
+          timerProgressBar: true,
+        });
+
+        Toast.fire({ icon: "success", title: "Lista vaciada correctamente" });
+      }
+    });
+  };
+
   if (!logueado) {
     return (
       <Login
         usuario={usuario}
         setUsuario={setUsuario}
         onLogin={() => setLogueado(true)}
-        esDefectuoso={true}
+        tipoCaja={TIPOS_CAJA.CADUCIDAD_PROXIMA}
       />
     );
   }
 
   return (
-    // Usamos un fondo ligeramente rojizo para diferenciar toda la app
-    <div className="app-container" style={{ borderTop: "5px solid #c0392b" }}>
+    <div className="app-container" style={{ borderTop: "5px solid #f39c12" }}>
       {idGuardado && (
         <div className="modal-overlay">
           <div
             className="modal-content"
-            style={{ width: "500px", borderTop: "8px solid #c0392b" }}
+            style={{ width: "500px", borderTop: "8px solid #f39c12" }}
           >
-            <h2 style={{ color: "#c0392b", textAlign: "center" }}>
-              ⚠️ CAJA SCRAP CERRADA
+            <h2 style={{ color: "#f39c12", textAlign: "center" }}>
+              ⏳ CAJA CADUCIDAD PRÓXIMA CERRADA
             </h2>
-            <p style={{ textAlign: "center" }}>
-              Etiqueta de producto NO CONFORME generada.
+
+            <p style={{ textAlign: "center", marginBottom: "20px" }}>
+              Imprima la etiqueta antes de continuar.
             </p>
 
-            {/* Visualización Etiqueta */}
-            <div style={{ transform: "scale(0.8)", marginBottom: "-40px" }}>
+            <div
+              style={{
+                transform: "scale(0.8)",
+                transformOrigin: "top center",
+                marginBottom: "-40px",
+              }}
+            >
               <div
                 style={{
                   display: "flex",
@@ -136,7 +139,7 @@ export default function OperarioDefectuoso() {
                   id={idGuardado}
                   fecha={new Date().toLocaleDateString()}
                   op_id={usuario}
-                  esDefectuoso={true}
+                  fechaCaducidadCaja={fechaCaducidadCajaGuardada}
                 />
               </div>
             </div>
@@ -154,39 +157,40 @@ export default function OperarioDefectuoso() {
                   cursor: "pointer",
                 }}
               >
-                🖨️ IMPRIMIR
+                🖨️ IMPRIMIR ETIQUETA
               </button>
+
               <button
                 onClick={resetProceso}
                 style={{
                   flex: 1,
                   padding: "15px",
-                  background: "#c0392b",
+                  background: "#f39c12",
                   color: "white",
                   border: "none",
                   fontWeight: "bold",
                   cursor: "pointer",
                 }}
               >
-                SIGUIENTE ➡️
+                SIGUIENTE CAJA ➡️
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Header con estilo de Alerta */}
       <Header usuario={usuario} progreso={celdas.length} total={limite} />
+
       <div
         style={{
-          background: "#c0392b",
+          background: "#f39c12",
           color: "white",
           textAlign: "center",
           padding: "5px",
           fontWeight: "bold",
         }}
       >
-        MODO: REGISTRO DE DEFECTUOSAS
+        MODO: REGISTRO DE CADUCIDAD PRÓXIMA
       </div>
 
       <main className="main-grid">
@@ -199,9 +203,9 @@ export default function OperarioDefectuoso() {
           onEnviar={enviarDatos}
           enviando={enviando}
           numCeldas={celdas.length}
-          limite={limiteActivo}
+          limite={limite}
           celdas={celdas}
-          tipoCaja={TIPOS_CAJA.DEFECTUOSA}
+          tipoCaja={TIPOS_CAJA.CADUCIDAD_PROXIMA}
         />
 
         <div
@@ -213,6 +217,7 @@ export default function OperarioDefectuoso() {
               🗑️ LIMPIAR
             </button>
           )}
+
           <PanelHistorico
             celdas={celdas_visuales}
             onBorrar={borrarCelda}
@@ -233,7 +238,7 @@ export default function OperarioDefectuoso() {
             id={idGuardado ?? ""}
             fecha={new Date().toLocaleDateString()}
             op_id={usuario}
-            esDefectuoso={true}
+            fechaCaducidadCaja={fechaCaducidadCajaGuardada}
           />
         </div>
       </div>

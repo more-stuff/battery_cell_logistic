@@ -34,6 +34,10 @@ export const AdminDashboard = () => {
 
   // SI HAY USUARIO -> MOSTRAMOS DASHBOARD
   const renderizarContenido = () => {
+    if (user.rol === "operario_linea") {
+      return <AdminModificarCaja />;
+    }
+
     switch (pestanaActual) {
       case "incoming":
         return <AdminIncoming />;

@@ -48,7 +48,9 @@ def obtener_configuracion(
 def actualizar_configuracion(
     datos: schemas.ConfigInput,
     db: Session = Depends(get_db),
-    current_user: models.UsuarioAdmin = Depends(auth.require_super_admin),
+    current_user: models.UsuarioAdmin = Depends(
+        auth.require_roles(auth.ROL_SUPERADMIN)
+    ),
 ):
     # Buscamos la clave (ej: "alerta_cada")
     config = db.query(models.Configuracion).filter_by(clave=datos.clave).first()

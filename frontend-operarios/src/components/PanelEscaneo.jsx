@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
+import { getTipoCajaUI } from "../services/tipoCajaUI";
 import Swal from "sweetalert2";
 
 const audios = {
@@ -11,7 +13,6 @@ const audios = {
   defect_error: new Audio("/sounds/defect_error.mp3"),
 };
 
-// Opcional: Forzar precarga para que estén listos ya
 Object.values(audios).forEach((audio) => (audio.preload = "auto"));
 
 export default function PanelEscaneo({
@@ -25,31 +26,33 @@ export default function PanelEscaneo({
   numCeldas,
   limite,
   celdas,
-  modoDefectuoso = false, // <--- 1. propiedad de si estamos en modo defecuoso por defecto false
+  tipoCaja = TIPOS_CAJA.NORMAL,
 }) {
   const inputRef = useRef(null);
-  const estaLleno = numCeldas >= limite;
   const [bloqueado, setBloqueado] = useState(false);
 
-  // Esto hace que solo se ejecute UNA vez al cargar la página
+  const tipoUI = getTipoCajaUI(tipoCaja);
+  const esNormal = tipoCaja === TIPOS_CAJA.NORMAL;
+  const estaLleno = numCeldas >= limite;
+
+  const headerClass = esNormal
+    ? "panel-header"
+    : "panel-header header-defectuoso";
+
   useEffect(() => {
     setTimeout(() => {
-      // Solo enfocamos la celda si ya hay un HU (recuperado de memoria),
       if (hu) inputRef.current?.focus();
     }, 100);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reproducirSonido = (tipo) => {
     const audioOriginal = audios[tipo];
 
     if (audioOriginal) {
-      // cloneNode() es suficiente.
-      // El navegador limpiará la memoria automáticamente cuando termine el audio.
       audioOriginal
         .cloneNode()
         .play()
         .catch((e) => {
-          // Ignoramos errores si el usuario cambia de pestaña rápido
           console.warn("Audio no reproducido:", e);
         });
     }
@@ -58,12 +61,12 @@ export default function PanelEscaneo({
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const res = onEscanear(); // Ejecutamos la lógica del hook
+    const res = onEscanear();
     const sonido = res.type || "short_error";
 
-    // CASO 1: ERROR (Duplicado, fecha mal, etc.)
     if (res?.error) {
       reproducirSonido(sonido);
+
       Swal.fire({
         icon: "error",
         title: "¡Error!",
@@ -71,10 +74,10 @@ export default function PanelEscaneo({
         timer: 2200,
         showConfirmButton: false,
       });
+
       return;
     }
 
-    // CASO 2: CONTROL DE CALIDAD
     if (res?.revision) {
       setBloqueado(true);
       reproducirSonido("quality_check");
@@ -112,10 +115,10 @@ export default function PanelEscaneo({
         setBloqueado(false);
         setTimeout(() => inputRef.current?.focus(), 100);
       });
-      return; // Importante: salir para no ejecutar lógica de nivel o éxito normal
+
+      return;
     }
 
-    // 👇 3. ALERTA DE NIVEL COMPLETADO
     if (res?.nivelCompletado) {
       reproducirSonido("level_complete");
 
@@ -147,20 +150,15 @@ export default function PanelEscaneo({
           setTimeout(() => inputRef.current?.focus(), 200);
         }
       });
-      return; // 🛑 IMPORTANTE: Cortamos aquí
+
+      return;
     }
 
-    // CASO 4: ÉXITO NORMAL (Sin revisión ni fin de nivel)
-    else {
-      reproducirSonido("ok");
-
-      setTimeout(() => inputRef.current?.focus(), 0);
-    }
+    reproducirSonido("ok");
+    setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   const handleFinalizar = () => {
-    console.log(celdas);
-    // calculo de hu diferentes
     const husUnicos = [
       ...new Set(celdas.map((c) => c.hu_asociado).filter((h) => h)),
     ];
@@ -171,22 +169,21 @@ export default function PanelEscaneo({
             .map(
               (h) =>
                 `<span style="
-            background-color: #e3f2fd;
-            color: #1565c0;
-            padding: 4px 10px;
-            border-radius: 15px;
-            font-size: 0.9em;
-            margin: 3px;
-            display: inline-block;
-            font-weight: bold;
-            border: 1px solid #90caf9;">
-            📦 ${h}
-           </span>`,
+                  background-color: #e3f2fd;
+                  color: #1565c0;
+                  padding: 4px 10px;
+                  border-radius: 15px;
+                  font-size: 0.9em;
+                  margin: 3px;
+                  display: inline-block;
+                  font-weight: bold;
+                  border: 1px solid #90caf9;">
+                  📦 ${h}
+                </span>`,
             )
             .join("")
         : '<span style="color: #999; font-style: italic;">Sin HUs registrados</span>';
 
-    // 👇 CONFIRMACIÓN ANTES DE ENVIAR
     Swal.fire({
       title: "¿Cerrar y Finalizar Caja?",
       html: `
@@ -207,7 +204,7 @@ export default function PanelEscaneo({
       `,
       icon: "question",
       showCancelButton: true,
-      confirmButtonColor: "#27ae60",
+      confirmButtonColor: tipoUI.colorPrincipal || "#27ae60",
       cancelButtonColor: "#d33",
       confirmButtonText: "Sí, enviar caja",
       cancelButtonText: "Cancelar",
@@ -219,22 +216,30 @@ export default function PanelEscaneo({
     });
   };
 
-  const headerClass = modoDefectuoso
-    ? "panel-header header-defectuoso"
-    : "panel-header";
+  const buttonStyle = {
+    width: "100%",
+    minHeight: "58px",
+    padding: "14px 18px",
+    borderRadius: "8px",
+    border: "none",
+    fontWeight: "bold",
+    fontSize: "1rem",
+    letterSpacing: "0.5px",
+    cursor: enviando || !estaLleno ? "not-allowed" : "pointer",
+    opacity: enviando || !estaLleno ? 0.55 : 1,
+    backgroundColor: esNormal ? undefined : tipoUI.colorPrincipal,
+    color: "white",
+  };
 
   return (
     <section className="panel scan-panel">
       <div
         className={headerClass}
-        style={modoDefectuoso ? { backgroundColor: "#c0392b" } : {}}
+        style={!esNormal ? { backgroundColor: tipoUI.colorPrincipal } : {}}
       >
-        <h3>
-          {modoDefectuoso
-            ? "🗑️ Escaneo de Datos defectuosos"
-            : "📥 Entrada de Datos"}
-        </h3>
+        <h3>{tipoUI.tituloPanel}</h3>
       </div>
+
       <div className="panel-body">
         <div className="form-group">
           <label>HU / CAJA ACTUAL</label>
@@ -263,16 +268,12 @@ export default function PanelEscaneo({
 
         <div className="action-area">
           <button
-            className="btn-send"
+            className="btn-submit"
             onClick={handleFinalizar}
             disabled={enviando || !estaLleno}
-            style={modoDefectuoso ? { backgroundColor: "#c0392b" } : {}}
+            style={buttonStyle}
           >
-            {enviando
-              ? "ENVIANDO..."
-              : modoDefectuoso
-                ? "⚠️ FINALIZAR SCRAP"
-                : "✅ FINALIZAR"}
+            {enviando ? "ENVIANDO..." : tipoUI.textoBotonFinalizar}
           </button>
         </div>
       </div>

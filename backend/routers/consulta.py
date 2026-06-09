@@ -133,7 +133,9 @@ def buscar_preview(
     usuario_id: Optional[str] = None,
     cols: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
+    current_user: models.UsuarioAdmin = Depends(
+        auth.require_roles(auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
+    ),
 ):
     base_query = db.query(models.Celda)
     query = aplicar_filtros(
@@ -189,7 +191,9 @@ def exportar_csv(
     cols: Optional[str] = Query(None),
     labels: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: models.UsuarioAdmin = Depends(auth.get_current_admin),
+    current_user: models.UsuarioAdmin = Depends(
+        auth.require_roles(auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
+    ),
 ):
     if cols and labels:
         lista_keys = cols.split(",")
@@ -213,9 +217,6 @@ def exportar_csv(
         usuario_id,
     )
 
-    # FIX 1: contains_eager en lugar de joinedload
-    # - Reutiliza los JOINs existentes de aplicar_filtros (sin duplicarlos)
-    # - Compatible con yield_per: no necesita bufferizar todo en RAM
     query = query.options(
         contains_eager(models.Celda.caja_destino),
         contains_eager(models.Celda.palet_origen),
@@ -231,7 +232,6 @@ def exportar_csv(
         output.seek(0)
         output.truncate(0)
 
-        # FIX 2: acumular BATCH_CSV filas antes de cada yield
         # 50k filas / 500 por chunk = 100 chunks en vez de 50.000
         count = 0
         for celda in query.yield_per(BATCH_CSV):

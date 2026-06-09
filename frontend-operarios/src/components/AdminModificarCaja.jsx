@@ -29,6 +29,7 @@ export const AdminModificarCaja = () => {
   const [blacklist, setBlacklist] = useState(new Set());
 
   const [nuevoDmc, setNuevoDmc] = useState("");
+  const [nuevoHuOrigen, setNuevoHuOrigen] = useState("");
   const [nuevaFecha, setNuevaFecha] = useState("");
   const [nuevoEstado, setNuevoEstado] = useState("OK");
   const [fechaError, setFechaError] = useState("");
@@ -100,7 +101,7 @@ export const AdminModificarCaja = () => {
   };
 
   const buscarCaja = async () => {
-    const id = idInput.trim().toUpperCase();
+    const id = idInput.trim();
     if (!id) return;
 
     setLoading(true);
@@ -130,6 +131,7 @@ export const AdminModificarCaja = () => {
     setNuevaFecha("");
     setNuevoEstado("OK");
     setFechaError("");
+    setNuevoHuOrigen("");
   };
 
   const handleEliminarCaja = async () => {
@@ -194,6 +196,14 @@ export const AdminModificarCaja = () => {
       });
       return;
     }
+    if (!nuevoHuOrigen.trim()) {
+      Swal.fire({
+        icon: "warning",
+        title: "Falta el HU de origen",
+        text: "Introduce el HU de origen de la celda nueva.",
+      });
+      return;
+    }
 
     const tipoCajaActual = getTipoCajaActual();
 
@@ -241,7 +251,7 @@ export const AdminModificarCaja = () => {
         nueva_celda: {
           dmc_code: nuevoDmc.trim(),
           fecha_caducidad: nuevaFecha,
-          hu_origen: celdaElegida.hu_origen ?? null,
+          hu_origen: nuevoHuOrigen.trim(),
           estado_calidad: nuevoEstado,
         },
         usuario_id: user.username ?? "admin",
@@ -254,6 +264,7 @@ export const AdminModificarCaja = () => {
             ? {
                 ...c,
                 dmc_code: nuevoDmc.trim(),
+                hu_origen: nuevoHuOrigen.trim(),
                 fecha_caducidad: nuevaFecha,
                 estado_calidad: nuevoEstado,
               }
@@ -264,6 +275,7 @@ export const AdminModificarCaja = () => {
 
       setCeldaElegida(null);
       setNuevoDmc("");
+      setNuevoHuOrigen("");
       setNuevaFecha("");
       setNuevoEstado("OK");
       setFechaError("");
@@ -504,6 +516,17 @@ export const AdminModificarCaja = () => {
               />
 
               {fechaError && <p style={estilos.fechaError}>⚠️ {fechaError}</p>}
+            </div>
+
+            <div>
+              <label style={estilos.label}>HU origen nueva celda *</label>
+
+              <input
+                style={estilos.input}
+                placeholder="Escanea o escribe el HU de origen"
+                value={nuevoHuOrigen}
+                onChange={(e) => setNuevoHuOrigen(e.target.value)}
+              />
             </div>
 
             <div>

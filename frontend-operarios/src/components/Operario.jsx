@@ -44,10 +44,13 @@ export default function Operario() {
   // nivelVisible: qué nivel está viendo el operario en este momento
   const [nivelVisible, setNivelVisible] = useState(0);
 
-  // Al escanear, volvemos siempre al nivel actual para no perder el hilo
   useEffect(() => {
-    setNivelVisible(nivelActual);
-  }, [celdas.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    const timeout = setTimeout(() => {
+      setNivelVisible(nivelActual);
+    }, 0);
+
+    return () => clearTimeout(timeout);
+  }, [nivelActual]);
 
   const irNivelAnterior = () => setNivelVisible((v) => Math.max(0, v - 1));
 
@@ -191,6 +194,7 @@ export default function Operario() {
           numCeldas={celdas.length}
           limite={limite}
           celdas={celdas}
+          tipoCaja={TIPOS_CAJA.NORMAL}
         />
 
         {/* PANEL DERECHO */}

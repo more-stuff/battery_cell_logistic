@@ -317,7 +317,7 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
         usuario_id: usuario,
         fecha_inicio: fechaInicio || new Date().toISOString(),
         fecha_fin: new Date().toISOString(),
-        is_defective: tipoCaja === TIPOS_CAJA.DEFECTUOSA,
+        is_defective: is_defective,
         tipo_caja: tipoCaja,
         celdas: celdas.map((c) => ({
           dmc_code: c.codigo_celda,
