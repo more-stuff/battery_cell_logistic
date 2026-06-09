@@ -124,8 +124,7 @@ class UsuarioAdmin(Base):
     username = Column(String(50), unique=True, index=True)
     hashed_password = Column(String(200))
 
-    # Roles: "standard" (Entrada/Salida) | "superadmin" (Configuración + Todo)
-    rol = Column(String(20), default="standard")
+    rol = Column(String(20), default="operario_linea")
 
 
 class DMCDefectuoso(Base):

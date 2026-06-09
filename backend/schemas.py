@@ -121,7 +121,7 @@ class ConfigResponse(BaseModel):
 class AdminCreate(BaseModel):
     username: str
     password: str
-    rol: str = "standard"  # "standard" o "superadmin"
+    rol: str = "operario_linea"
 
 
 class Token(BaseModel):

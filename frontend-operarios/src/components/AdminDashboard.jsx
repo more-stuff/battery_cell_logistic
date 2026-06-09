@@ -7,7 +7,7 @@ import { AdminLogin } from "./AdminLogin";
 import { AdminModificarCaja } from "./AdminModificarCaja";
 
 export const AdminDashboard = () => {
-  const [user, setUser] = useState(null); // Estado del usuario logueado
+  const [user, setUser] = useState(null);
   const [pestanaActual, setPestanaActual] = useState("incoming");
 
   // AL CARGAR: Comprobar si ya estamos logueados de antes
@@ -16,9 +16,24 @@ export const AdminDashboard = () => {
     const savedToken = localStorage.getItem("admin_token");
 
     if (savedUser && savedToken) {
-      setUser(JSON.parse(savedUser));
+      const parsedUser = JSON.parse(savedUser);
+      setUser(parsedUser);
+
+      if (parsedUser.rol === "operario_linea") {
+        setPestanaActual("modificar");
+      }
     }
   }, []);
+
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
+
+    if (userData.rol === "operario_linea") {
+      setPestanaActual("modificar");
+    } else {
+      setPestanaActual("incoming");
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("admin_user");
@@ -29,31 +44,38 @@ export const AdminDashboard = () => {
 
   // SI NO HAY USUARIO -> MOSTRAMOS LOGIN
   if (!user) {
-    return <AdminLogin onLoginSuccess={(userData) => setUser(userData)} />;
+    return <AdminLogin onLoginSuccess={handleLoginSuccess} />;
   }
+
+  const esOperarioLinea = user.rol === "operario_linea";
 
   // SI HAY USUARIO -> MOSTRAMOS DASHBOARD
   const renderizarContenido = () => {
-    if (user.rol === "operario_linea") {
+    // Protección extra: el operario_linea solo puede ver Modificar Caja
+    if (esOperarioLinea) {
       return <AdminModificarCaja />;
     }
 
     switch (pestanaActual) {
       case "incoming":
         return <AdminIncoming />;
+
       case "outbound":
         return <AdminOutbound />;
+
       case "consulta":
         return <AdminConsulta />;
+
       case "modificar":
         return <AdminModificarCaja />;
+
       case "config":
-        // Protección extra por si alguien intenta forzar la vista
         return user.rol === "superadmin" ? (
           <AdminConfig />
         ) : (
           <p>Acceso Restringido</p>
         );
+
       default:
         return <AdminIncoming />;
     }
@@ -64,32 +86,51 @@ export const AdminDashboard = () => {
       {/* === BARRA LATERAL === */}
       <div style={estilos.sidebar}>
         <div style={estilos.logo}>
-          ⚙️ ADMIN PANEL
+          {esOperarioLinea ? "🔧 LÍNEA" : "⚙️ ADMIN PANEL"}
+
           <div
             style={{ fontSize: "0.8rem", color: "#95a5a6", marginTop: "5px" }}
           >
             Hola, {user.username}
           </div>
+
+          <div
+            style={{ fontSize: "0.75rem", color: "#7f8c8d", marginTop: "4px" }}
+          >
+            Rol: {user.rol}
+          </div>
         </div>
 
         <nav style={estilos.menu}>
-          <button
-            onClick={() => setPestanaActual("incoming")}
-            style={
-              pestanaActual === "incoming" ? estilos.botonActivo : estilos.boton
-            }
-          >
-            📥 REGISTRAR ENTRADA
-          </button>
+          {/* 
+            El operario_linea NO ve Incoming, Outbound ni Consulta.
+            Solo ve Modificar Caja.
+          */}
+          {!esOperarioLinea && (
+            <>
+              <button
+                onClick={() => setPestanaActual("incoming")}
+                style={
+                  pestanaActual === "incoming"
+                    ? estilos.botonActivo
+                    : estilos.boton
+                }
+              >
+                📥 REGISTRAR ENTRADA
+              </button>
 
-          <button
-            onClick={() => setPestanaActual("outbound")}
-            style={
-              pestanaActual === "outbound" ? estilos.botonActivo : estilos.boton
-            }
-          >
-            📤 REGISTRAR SALIDA
-          </button>
+              <button
+                onClick={() => setPestanaActual("outbound")}
+                style={
+                  pestanaActual === "outbound"
+                    ? estilos.botonActivo
+                    : estilos.boton
+                }
+              >
+                📤 REGISTRAR SALIDA
+              </button>
+            </>
+          )}
 
           <button
             onClick={() => setPestanaActual("modificar")}
@@ -102,20 +143,24 @@ export const AdminDashboard = () => {
             🔧 MODIFICAR CAJA
           </button>
 
-          <button
-            onClick={() => setPestanaActual("consulta")}
-            style={
-              pestanaActual === "consulta" ? estilos.botonActivo : estilos.boton
-            }
-          >
-            🔍 CONSULTAR INFO
-          </button>
+          {!esOperarioLinea && (
+            <button
+              onClick={() => setPestanaActual("consulta")}
+              style={
+                pestanaActual === "consulta"
+                  ? estilos.botonActivo
+                  : estilos.boton
+              }
+            >
+              🔍 CONSULTAR INFO
+            </button>
+          )}
 
           {/* ESPACIADOR */}
           <div style={{ flex: 1 }}></div>
 
-          {/* 👇 SOLO VISIBLE PARA SUPERADMIN */}
-          {user.rol === "superadmin" && (
+          {/* SOLO VISIBLE PARA SUPERADMIN */}
+          {!esOperarioLinea && user.rol === "superadmin" && (
             <button
               onClick={() => setPestanaActual("config")}
               style={
@@ -146,8 +191,6 @@ export const AdminDashboard = () => {
   );
 };
 
-// ... (Los estilos se mantienen igual que en tu archivo original) ...
-// Puedes copiar y pegar tus estilos aquí abajo.
 const estilos = {
   layout: {
     display: "flex",
