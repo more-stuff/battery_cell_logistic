@@ -10,12 +10,15 @@ import PanelEscaneo from "./PanelEscaneo";
 import PanelHistorico from "./PanelHistorico";
 import { Etiqueta } from "./Etiqueta";
 import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
+import { useTitulo } from "../hooks/useTitulo";
 
 import "../styles/Operario.css";
 
 export default function OperarioDefectuoso() {
   const [usuario, setUsuario] = useState("");
   const [logueado, setLogueado] = useState(false);
+
+  useTitulo("Defectuuosas");
 
   // Hook original
   const {

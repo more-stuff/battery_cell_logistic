@@ -2,6 +2,8 @@ import { useState, useRef } from "react";
 import Swal from "sweetalert2"; // <--- IMPORTANTE
 import { guardarUbicacion } from "../services/api";
 
+import { useTitulo } from "../hooks/useTitulo.js";
+
 export const Carretillero = () => {
   const [idCaja, setIdCaja] = useState("");
   const [ubicacion, setUbicacion] = useState("");
@@ -9,6 +11,8 @@ export const Carretillero = () => {
 
   const ubicacionRef = useRef(null);
   const idRef = useRef(null);
+
+  useTitulo("Ubicación de Cajas");
 
   const handleSubmit = async (e) => {
     e.preventDefault();

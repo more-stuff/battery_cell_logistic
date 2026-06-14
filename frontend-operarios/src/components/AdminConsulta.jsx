@@ -27,6 +27,11 @@ const COLUMNAS_DISPONIBLES = [
     group: "repacking_area",
   },
   {
+    id: "posicion_caja",
+    label: "Pos. Celda",
+    group: "repacking_area",
+  },
+  {
     id: "fecha_fin_reempaque",
     label: "F. Fin Reempaque",
     group: "repacking_area",

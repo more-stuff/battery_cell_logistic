@@ -182,7 +182,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
             db.add(models.PaletEntrada(hu_proveedor=hu))
 
         # 4. GUARDAR CELDAS Y VINCULAR PALETS
-        for celda_in in datos.celdas:
+        for posicion, celda_in in enumerate(datos.celdas):
 
             # B. Crear Celda
             nueva_celda = models.Celda(
@@ -191,6 +191,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
                 dmc_code=celda_in.dmc_code,
                 fecha_caducidad=celda_in.fecha_caducidad,
                 estado_calidad=celda_in.estado_calidad,
+                posicion_en_caja=posicion,
             )
             db.add(nueva_celda)
 

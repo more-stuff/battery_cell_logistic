@@ -72,6 +72,7 @@ class CeldaDetalle(BaseModel):
     fecha_caducidad: date
     hu_origen: Optional[str] = None
     estado_calidad: str
+    posicion_en_caja: Optional[int] = None
 
     class Config:
         from_attributes = True

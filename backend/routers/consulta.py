@@ -104,6 +104,7 @@ def construir_fila(celda, caja, palet):
         "dmc": celda.dmc_code,
         "estado_calidad": getattr(celda, "estado_calidad", "OK"),
         "id_temporal": caja.id_temporal if caja else "",
+        "posicion_caja": celda.posicion_en_caja if celda else "",
         "caducidad_celda": celda.fecha_caducidad,
         "caducidad_antigua": caja.fecha_caducidad_caja if caja else None,
         "fecha_almacenamiento": getattr(caja, "fecha_almacenamiento", None),
@@ -134,7 +135,11 @@ def buscar_preview(
     cols: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.UsuarioAdmin = Depends(
-        auth.require_roles(auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
+        auth.require_roles(
+            auth.ROL_ADMIN,
+            auth.ROL_SUPERADMIN,
+            auth.ROL_OPERARIO_LINEA,
+        )
     ),
 ):
     base_query = db.query(models.Celda)
@@ -192,7 +197,7 @@ def exportar_csv(
     labels: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.UsuarioAdmin = Depends(
-        auth.require_roles(auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
+        auth.require_roles(auth.ROL_ADMIN, auth.ROL_SUPERADMIN, auth.ROL_OPERARIO_LINEA)
     ),
 ):
     if cols and labels:

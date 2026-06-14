@@ -1,0 +1,2 @@
+VACUUM FULL celdas;
+REINDEX TABLE celdas;

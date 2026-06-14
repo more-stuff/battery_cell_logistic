@@ -38,7 +38,7 @@ export const AdminTabla = ({
       return valor ? "defectuosa" : "válida";
     }
 
-    return valor || "";
+    return valor ?? "";
   };
 
   return (

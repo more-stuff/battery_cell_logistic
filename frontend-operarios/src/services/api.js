@@ -129,6 +129,7 @@ export const buscarPreview = async (filtros) => {
   const response = await api.get(`/admin/consulta/preview`, {
     params,
   });
+  console.log(response.data);
   return response.data;
 };
 export const descargarCSV = async (filtros) => {

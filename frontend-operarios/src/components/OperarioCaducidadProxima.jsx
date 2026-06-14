@@ -8,12 +8,15 @@ import PanelHistorico from "./PanelHistorico";
 import { Etiqueta } from "./Etiqueta";
 import Swal from "sweetalert2";
 import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
+import { useTitulo } from "../hooks/useTitulo";
 
 import "../styles/Operario.css";
 
 export default function OperarioCaducidadProxima() {
   const [usuario, setUsuario] = useState("");
   const [logueado, setLogueado] = useState(false);
+
+  useTitulo("Caducidad Próxima Celdas");
 
   const {
     huActual,

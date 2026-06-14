@@ -28,12 +28,12 @@ const getInitialTab = (user) => {
 
 export const AdminDashboard = () => {
   const [user, setUser] = useState(() => getSavedUser());
-
   const [pestanaActual, setPestanaActual] = useState(() =>
     getInitialTab(getSavedUser()),
   );
 
   const esOperarioLinea = user?.rol === "operario_linea";
+  const esSuperadmin = user?.rol === "superadmin";
 
   const handleLoginSuccess = (userData) => {
     setUser(userData);
@@ -53,7 +53,14 @@ export const AdminDashboard = () => {
 
   const renderizarContenido = () => {
     if (esOperarioLinea) {
-      return <AdminModificarCaja />;
+      switch (pestanaActual) {
+        case "consulta":
+          return <AdminConsulta />;
+
+        case "modificar":
+        default:
+          return <AdminModificarCaja />;
+      }
     }
 
     switch (pestanaActual) {
@@ -70,11 +77,7 @@ export const AdminDashboard = () => {
         return <AdminModificarCaja />;
 
       case "config":
-        return user.rol === "superadmin" ? (
-          <AdminConfig />
-        ) : (
-          <p>Acceso Restringido</p>
-        );
+        return esSuperadmin ? <AdminConfig /> : <p>Acceso Restringido</p>;
 
       default:
         return <AdminIncoming />;
@@ -85,7 +88,7 @@ export const AdminDashboard = () => {
     <div style={estilos.layout}>
       <div style={estilos.sidebar}>
         <div style={estilos.logo}>
-          {esOperarioLinea ? "🔧 LÍNEA" : "⚙️ ADMIN PANEL"}
+          {esOperarioLinea ? "🔧 PANEL LÍNEA" : "⚙️ ADMIN PANEL"}
 
           <div
             style={{ fontSize: "0.8rem", color: "#95a5a6", marginTop: "5px" }}
@@ -138,22 +141,18 @@ export const AdminDashboard = () => {
             🔧 MODIFICAR CAJA
           </button>
 
-          {!esOperarioLinea && (
-            <button
-              onClick={() => setPestanaActual("consulta")}
-              style={
-                pestanaActual === "consulta"
-                  ? estilos.botonActivo
-                  : estilos.boton
-              }
-            >
-              🔍 CONSULTAR INFO
-            </button>
-          )}
+          <button
+            onClick={() => setPestanaActual("consulta")}
+            style={
+              pestanaActual === "consulta" ? estilos.botonActivo : estilos.boton
+            }
+          >
+            🔍 CONSULTAR INFO
+          </button>
 
           <div style={{ flex: 1 }}></div>
 
-          {!esOperarioLinea && user.rol === "superadmin" && (
+          {!esOperarioLinea && esSuperadmin && (
             <button
               onClick={() => setPestanaActual("config")}
               style={

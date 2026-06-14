@@ -189,7 +189,6 @@ def get_celdas_caja(
     # Sin esto SQLAlchemy haria 2 queries separadas (lazy load por defecto).
     caja = (
         db.query(models.CajaReempaque)
-        .options(joinedload(models.CajaReempaque.celdas))
         .filter(models.CajaReempaque.id_temporal == id_temporal)
         .first()
     )
@@ -200,14 +199,25 @@ def get_celdas_caja(
             detail=f"No se encontro ninguna caja con id '{id_temporal}'",
         )
 
+    celdas = (
+        db.query(models.Celda)
+        .filter(models.Celda.caja_reempaque_id == caja.id)
+        .order_by(
+            models.Celda.posicion_en_caja.asc().nullslast(),
+            models.Celda.id.asc(),
+        )
+        .all()
+    )
+
     celdas_detalle = [
         schemas.CeldaDetalle(
             dmc_code=c.dmc_code,
             fecha_caducidad=c.fecha_caducidad,
             hu_origen=c.hu_origen_id,
             estado_calidad=c.estado_calidad or "OK",
+            posicion_en_caja=c.posicion_en_caja,
         )
-        for c in caja.celdas
+        for c in celdas
     ]
 
     return schemas.CajaConCeldas(
