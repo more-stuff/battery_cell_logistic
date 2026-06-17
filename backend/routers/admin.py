@@ -182,7 +182,7 @@ def get_celdas_caja(
     id_temporal: str,
     db: Session = Depends(get_db),
     current_user: models.UsuarioAdmin = Depends(
-        auth.require_roles(auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
+        auth.require_roles(auth.ROL_OPERARIO_LINEA, auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
     ),
 ):
     # joinedload: carga la caja Y sus celdas en UNA SOLA query con JOIN.

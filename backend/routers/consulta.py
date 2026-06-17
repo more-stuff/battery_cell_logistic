@@ -44,15 +44,20 @@ def aplicar_filtros(
         query = query.filter(models.Celda.dmc_code == unquote(dmc).strip())
 
     if hu_entrada:
-        query = query.filter(models.PaletEntrada.hu_proveedor.contains(hu_entrada))
+        hu_entrada = unquote(hu_entrada).strip()
+        query = query.filter(models.PaletEntrada.hu_proveedor == hu_entrada)
 
     if hu_salida:
-        query = query.filter(
-            models.CajaReempaque.hu_silena_outbound.contains(hu_salida)
-        )
+        hu_salida = unquote(hu_salida).strip()
+        query = query.filter(models.CajaReempaque.hu_silena_outbound == hu_salida)
 
     if id_temporal:
-        query = query.filter(models.CajaReempaque.id_temporal.contains(id_temporal))
+        id_temporal = unquote(id_temporal).strip()
+        query = query.filter(models.CajaReempaque.id_temporal == id_temporal)
+
+    if usuario_id:
+        usuario_id = unquote(usuario_id).strip()
+        query = query.filter(models.CajaReempaque.usuario_id == usuario_id)
 
     if fecha_caducidad:
         hoy = date.today()
@@ -83,9 +88,6 @@ def aplicar_filtros(
     elif is_defective is not None:
         # Fallback retrocompatible por si alguna pantalla vieja sigue mandando is_defective
         query = query.filter(models.CajaReempaque.is_defective == is_defective)
-
-    if usuario_id:
-        query = query.filter(models.CajaReempaque.usuario_id.contains(usuario_id))
 
     return query
 
