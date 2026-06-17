@@ -38,6 +38,10 @@ export const AdminTabla = ({
       return valor ? "defectuosa" : "válida";
     }
 
+    if (colId.includes("posicion")) {
+      return valor + 1;
+    }
+
     return valor ?? "";
   };
 
