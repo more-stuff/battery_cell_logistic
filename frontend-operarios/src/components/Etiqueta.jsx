@@ -1,9 +1,21 @@
 // src/components/Etiqueta.jsx
-import React from "react";
+
 import Barcode from "react-barcode";
+import { getTipoCajaUI } from "../services/tipoCajaUI";
+import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
+import { getTipoCeldaUI, TIPOS_CELDA } from "../services/tiposCelda";
 
 // Ya no necesitamos forwardRef ni ref aquí, porque el 'padre' se encarga de imprimir
-export const Etiqueta = ({ id, fecha, op_id, fechaCaducidadCaja }) => {
+export const Etiqueta = ({
+  id,
+  fecha,
+  op_id,
+  fechaCaducidadCaja,
+  tipoCaja = TIPOS_CAJA.NORMAL,
+  tipoCelda = TIPOS_CELDA.CELDA,
+}) => {
+  const tipoCajaUI = getTipoCajaUI(tipoCaja);
+  const tipoCeldaUI = getTipoCeldaUI(tipoCelda);
   return (
     <div style={estilos.contenedor}>
       <div style={estilos.cabecera}>
@@ -31,6 +43,14 @@ export const Etiqueta = ({ id, fecha, op_id, fechaCaducidadCaja }) => {
       </div>
 
       <div style={estilos.infoExtra}>
+        <strong>Tipo celda:</strong> {tipoCeldaUI.label || tipoCelda}
+      </div>
+
+      <div style={estilos.infoExtra}>
+        <strong>Tipo caja:</strong> {tipoCajaUI.label || tipoCaja}
+      </div>
+
+      <div style={estilos.infoExtra}>
         <strong>Caducidad caja:</strong> {fechaCaducidadCaja || "N/A"}
       </div>
 
@@ -45,7 +65,7 @@ const estilos = {
   // ... (tus mismos estilos de siempre) ...
   contenedor: {
     width: "400px",
-    height: "250px",
+    height: "290px",
     border: "2px dashed #000",
     padding: "20px",
     margin: "0 auto",
@@ -73,8 +93,8 @@ const estilos = {
   },
   footer: { borderTop: "1px solid #ccc", paddingTop: "5px", fontSize: "10px" },
   infoExtra: {
-    marginTop: "5px",
-    fontSize: "14px",
+    marginTop: "4px",
+    fontSize: "12px",
     textAlign: "center",
     borderTop: "1px dashed #ccc", // Opcional: una línea divisoria sutil
     paddingTop: "4px",

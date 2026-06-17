@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
+import { TIPO_CAJA_UI } from "../services/tipoCajaUI";
+import { TIPOS_CELDA, TIPOS_CELDA_UI } from "../services/tiposCelda";
 import { getLoginUI, getLoginStyles } from "../styles/Login.styles";
 
 export default function Login({
@@ -7,6 +9,9 @@ export default function Login({
   setUsuario,
   onLogin,
   tipoCaja = TIPOS_CAJA.NORMAL,
+  setTipoCaja,
+  tipoCelda = TIPOS_CELDA.CELDA,
+  setTipoCelda,
 
   // Compatibilidad temporal con pantallas antiguas.
   // Cuando todas usen tipoCaja, se puede borrar.
@@ -44,6 +49,39 @@ export default function Login({
         <p style={styles.subtitle}>{tema.subtitulo}</p>
 
         <form onSubmit={handleSubmit}>
+          <div style={styles.selectorGroup}>
+            <label style={styles.label}>Tipo de celda</label>
+
+            <select
+              value={tipoCelda}
+              onChange={(e) => setTipoCelda?.(e.target.value)}
+              style={styles.select}
+            >
+              {Object.values(TIPOS_CELDA).map((tipo) => (
+                <option key={tipo} value={tipo}>
+                  {TIPOS_CELDA_UI[tipo]?.label ?? tipo}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={styles.selectorGroup}>
+            <label style={styles.label}>Tipo de caja</label>
+
+            <select
+              value={tipoCajaFinal}
+              onChange={(e) => setTipoCaja?.(e.target.value)}
+              style={styles.select}
+              disabled={!setTipoCaja}
+            >
+              {Object.values(TIPOS_CAJA).map((tipo) => (
+                <option key={tipo} value={tipo}>
+                  {TIPO_CAJA_UI[tipo]?.label ?? tipo}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <input
             type="text"
             placeholder={tema.placeholder}

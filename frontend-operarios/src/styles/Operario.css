@@ -63,6 +63,32 @@ body {
   font-weight: bold;
 }
 
+.btn-header-login {
+  border: none;
+  background: var(--primary);
+  color: white;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.btn-header-login:hover {
+  transform: translateY(-1px);
+  opacity: 0.9;
+}
+
+.btn-header-login:active {
+  transform: translateY(0);
+}
+
 /* BARRA PROGRESO */
 .progress-wrapper {
   flex: 1; /* Ocupa el espacio central */

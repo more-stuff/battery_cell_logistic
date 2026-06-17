@@ -127,6 +127,34 @@ export const getLoginStyles = ({ tema, tieneModoEspecial, isHover }) => ({
     lineHeight: "1.5",
   },
 
+  selectorGroup: {
+    width: "100%",
+    textAlign: "left",
+    marginBottom: "18px",
+  },
+
+  label: {
+    display: "block",
+    marginBottom: "8px",
+    color: tema.tituloColor,
+    fontWeight: "800",
+    fontSize: "0.85rem",
+    textTransform: "uppercase",
+    letterSpacing: "1px",
+  },
+
+  select: {
+    width: "100%",
+    padding: "16px",
+    fontSize: "1rem",
+    borderRadius: "12px",
+    border: "2px solid #e1e8ed",
+    outline: "none",
+    color: "#2c3e50",
+    backgroundColor: "#fff",
+    boxSizing: "border-box",
+    fontWeight: "700",
+  },
   input: {
     width: "100%",
     padding: "18px",

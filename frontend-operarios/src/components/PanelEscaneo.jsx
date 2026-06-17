@@ -216,6 +216,8 @@ export default function PanelEscaneo({
     });
   };
 
+  const puedeFinalizar = estaLleno && !enviando;
+
   const buttonStyle = {
     width: "100%",
     minHeight: "58px",
@@ -225,10 +227,11 @@ export default function PanelEscaneo({
     fontWeight: "bold",
     fontSize: "1rem",
     letterSpacing: "0.5px",
-    cursor: enviando || !estaLleno ? "not-allowed" : "pointer",
-    opacity: enviando || !estaLleno ? 0.55 : 1,
-    backgroundColor: esNormal ? undefined : tipoUI.colorPrincipal,
+    cursor: puedeFinalizar ? "pointer" : "not-allowed",
+    backgroundColor: puedeFinalizar ? tipoUI.colorPrincipal : "#bdc3c7",
     color: "white",
+    opacity: 1,
+    transition: "background-color 0.2s ease, transform 0.2s ease",
   };
 
   return (
@@ -268,9 +271,9 @@ export default function PanelEscaneo({
 
         <div className="action-area">
           <button
-            className="btn-submit"
+            className="btn-send"
             onClick={handleFinalizar}
-            disabled={enviando || !estaLleno}
+            disabled={!puedeFinalizar}
             style={buttonStyle}
           >
             {enviando ? "ENVIANDO..." : tipoUI.textoBotonFinalizar}
