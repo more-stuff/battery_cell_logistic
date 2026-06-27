@@ -11,6 +11,25 @@ TIPOS_CAJA_VALIDOS = {
     TIPO_CADUCIDAD_PROXIMA,
 }
 
+MODELO1 = "MODELO1"
+MODELO2 = "MODELO2"
+
+MODELO_POR_DEFECTO = MODELO1
+
+MODELOS_VALIDOS = {
+    MODELO1,
+    MODELO2,
+}
+
+
+def normalizar_modelo(modelo: str | None) -> str:
+    modelo_normalizado = (modelo or MODELO_POR_DEFECTO).strip().upper()
+
+    if modelo_normalizado not in MODELOS_VALIDOS:
+        raise ValueError(f"Modelo no válido: {modelo}")
+
+    return modelo_normalizado
+
 
 def esta_caducada(fecha_caducidad: Optional[date]) -> bool:
     if fecha_caducidad is None:
@@ -112,10 +131,21 @@ def validar_celda_para_tipo_caja(
         return
 
 
-def get_config_int(db, models, clave: str, default: int) -> int:
+def get_config_int(
+    db,
+    models,
+    modelo: Optional[str],
+    clave: str,
+    default: int,
+) -> int:
+    modelo = normalizar_modelo(modelo)
+
     conf = (
         db.query(models.Configuracion)
-        .filter(models.Configuracion.clave == clave)
+        .filter(
+            models.Configuracion.modelo == modelo,
+            models.Configuracion.clave == clave,
+        )
         .first()
     )
 
@@ -129,11 +159,36 @@ def get_config_int(db, models, clave: str, default: int) -> int:
         return default
 
 
-def get_limite_por_tipo_caja(db, models, tipo_caja: str) -> int:
+def get_limite_por_tipo_caja(
+    db,
+    models,
+    modelo: Optional[str],
+    tipo_caja: str,
+) -> int:
+    modelo = normalizar_modelo(modelo)
+
     if tipo_caja == TIPO_DEFECTUOSA:
-        return get_config_int(db, models, "limite_defectuosa", 180)
+        return get_config_int(
+            db,
+            models,
+            modelo,
+            "limite_defectuosa",
+            180,
+        )
 
     if tipo_caja == TIPO_CADUCIDAD_PROXIMA:
-        return get_config_int(db, models, "limite_caducidad_proxima", 180)
+        return get_config_int(
+            db,
+            models,
+            modelo,
+            "limite_caducidad_proxima",
+            180,
+        )
 
-    return get_config_int(db, models, "limite_caja", 180)
+    return get_config_int(
+        db,
+        models,
+        modelo,
+        "limite_caja",
+        180,
+    )

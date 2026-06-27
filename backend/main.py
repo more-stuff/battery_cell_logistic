@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 import models
+from box_rules import MODELO1, MODELO2
 
 # Importamos los routers que acabamos de crear
 from routers import operarios, almacen, admin, config, consulta, defective
@@ -12,39 +13,53 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Sistema Industrial Modular")
 
 
-# --- FUNCIÓN DE INICIALIZACIÓN (SEMILLA) ---
 def initialize_config():
     from database import SessionLocal
 
+    configuraciones_por_defecto = {
+        "alerta_cada": "15",
+        "limite_caja": "180",
+        "limite_defectuosa": "180",
+        "limite_caducidad_proxima": "180",
+        "len_dmc": "87",
+        "caducidad_proxima_dias": "30",
+    }
+
     db = SessionLocal()
+
     try:
+        for modelo in (MODELO1, MODELO2):
+            for clave, valor in configuraciones_por_defecto.items():
 
-        # 1. Chequear ALERTA
-        if not db.query(models.Configuracion).filter_by(clave="alerta_cada").first():
-            print("⚙️ Creando configuración por defecto: alerta_cada = 15")
-            db.add(models.Configuracion(clave="alerta_cada", valor="15"))
+                existe = (
+                    db.query(models.Configuracion)
+                    .filter(
+                        models.Configuracion.modelo == modelo,
+                        models.Configuracion.clave == clave,
+                    )
+                    .first()
+                )
 
-        # 2. Chequear LÍMITE
-        if not db.query(models.Configuracion).filter_by(clave="limite_caja").first():
-            print("⚙️ Creando configuración por defecto: limite_caja = 180")
-            db.add(models.Configuracion(clave="limite_caja", valor="180"))
+                if not existe:
+                    print(
+                        f"⚙️ Creando configuración por defecto: "
+                        f"{modelo} / {clave} = {valor}"
+                    )
 
-        # checquear limite de las defectuosas
-        if (
-            not db.query(models.Configuracion)
-            .filter_by(clave="limite_defectuosa")
-            .first()
-        ):
-            print("⚙️ Creando configuración por defecto: limite_defectuosa = 180")
-            db.add(models.Configuracion(clave="limite_defectuosa", valor="180"))
-
-        if not db.query(models.Configuracion).filter_by(clave="len_dmc").first():
-            print("⚙️ Creando configuración por defecto: len_dmc = 86")
-            db.add(models.Configuracion(clave="len_dmc", valor="87"))
+                    db.add(
+                        models.Configuracion(
+                            modelo=modelo,
+                            clave=clave,
+                            valor=valor,
+                        )
+                    )
 
         db.commit()
+
     except Exception as e:
+        db.rollback()
         print(f"Error inicializando config: {e}")
+
     finally:
         db.close()
 

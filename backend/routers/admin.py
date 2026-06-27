@@ -15,6 +15,7 @@ from box_rules import (
     TIPOS_CAJA_VALIDOS,
     validar_celda_para_tipo_caja,
     get_config_int,
+    normalizar_modelo,
 )
 
 
@@ -199,6 +200,8 @@ def get_celdas_caja(
             detail=f"No se encontro ninguna caja con id '{id_temporal}'",
         )
 
+    modelo = normalizar_modelo(getattr(caja, "modelo", None))
+
     celdas = (
         db.query(models.Celda)
         .filter(models.Celda.caja_reempaque_id == caja.id)
@@ -226,6 +229,7 @@ def get_celdas_caja(
         is_defective=caja.is_defective,
         total_celdas=len(celdas_detalle),
         tipo_caja=getattr(caja, "tipo_caja", None),
+        modelo=modelo,
         celdas=celdas_detalle,
     )
 
@@ -253,6 +257,7 @@ def sustituir_celda(
         tipo_caja = getattr(caja, "tipo_caja", None) or (
             TIPO_DEFECTUOSA if caja.is_defective else TIPO_NORMAL
         )
+        modelo = normalizar_modelo(getattr(caja, "modelo", None))
 
         if tipo_caja not in TIPOS_CAJA_VALIDOS:
             raise HTTPException(
@@ -263,6 +268,7 @@ def sustituir_celda(
         dias_caducidad_proxima = get_config_int(
             db,
             models,
+            modelo,
             "caducidad_proxima_dias",
             30,
         )

@@ -12,6 +12,7 @@ from box_rules import (
     validar_celda_para_tipo_caja,
     get_config_int,
     get_limite_por_tipo_caja,
+    normalizar_modelo,
 )
 
 # Imports relativos (salimos de la carpeta routers para buscar estos archivos)
@@ -37,6 +38,13 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
         tipo_caja = datos.tipo_caja or (
             TIPO_DEFECTUOSA if datos.is_defective else TIPO_NORMAL
         )
+        try:
+            modelo = normalizar_modelo(datos.modelo)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=str(e),
+            )
 
         if tipo_caja not in TIPOS_CAJA_VALIDOS:
             raise HTTPException(
@@ -44,7 +52,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
                 detail=f"Tipo de caja no válido: {tipo_caja}",
             )
 
-        limite_esperado = get_limite_por_tipo_caja(db, models, tipo_caja)
+        limite_esperado = get_limite_por_tipo_caja(db, models, modelo, tipo_caja)
 
         if len(datos.celdas) != limite_esperado:
             raise HTTPException(
@@ -58,6 +66,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
         dias_caducidad_proxima = get_config_int(
             db,
             models,
+            modelo,
             "caducidad_proxima_dias",
             30,
         )
@@ -160,6 +169,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
             fecha_caducidad_caja=peor_caducidad,
             is_defective=(tipo_caja == TIPO_DEFECTUOSA),
             tipo_caja=tipo_caja,
+            modelo=modelo,
         )
 
         db.add(nueva_caja)
@@ -201,6 +211,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
             "mensaje": "Caja guardada",
             "id_temporal": nueva_caja.id_temporal,
             "fecha_caducidad_caja": nueva_caja.fecha_caducidad_caja,
+            "modelo": nueva_caja.modelo,
         }
 
     except HTTPException as http_ex:

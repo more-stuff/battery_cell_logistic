@@ -50,6 +50,9 @@ class CajaReempaque(Base):
     is_defective = Column(
         Boolean, default=False
     )  # ya no se usa se deja por retrocompatibilidad
+
+    modelo = Column(String(20), nullable=False, default="MODELO1")
+
     tipo_caja = Column(
         String(30), nullable=False, default="NORMAL"
     )  # NORMAL | DEFECTUOSA | CADUCIDAD_PROXIMA
@@ -113,9 +116,16 @@ class Celda(Base):
 class Configuracion(Base):
     __tablename__ = "configuraciones"
 
-    # Ejemplo: clave="alerta_cada", valor="15"
-    clave = Column(String(50), primary_key=True, index=True)
-    valor = Column(String(200))  # Lo guardamos como String para ser flexibles
+    # Una misma clave puede existir una vez para cada modelo.
+    modelo = Column(
+        String(20),
+        primary_key=True,
+        nullable=False,
+        default="MODELO1",
+    )
+
+    clave = Column(String(50), primary_key=True)
+    valor = Column(String(200))
 
 
 class UsuarioAdmin(Base):

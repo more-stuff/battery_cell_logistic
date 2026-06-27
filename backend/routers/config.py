@@ -1,44 +1,59 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
+from box_rules import normalizar_modelo
 import models, schemas, auth
 
 router = APIRouter(prefix="/admin", tags=["Config"])
 
 
-# --- ENDPOINT 1: OBTENER CONFIGURACIÓN (Para Frontend) ---
+def obtener_modelo_valido(modelo: str) -> str:
+    try:
+        return normalizar_modelo(modelo)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e),
+        )
+
+
 @router.get("/config", response_model=schemas.ConfigResponse)
 def obtener_configuracion(
+    modelo: str = "MODELO1",
     db: Session = Depends(get_db),
 ):
-    # Buscamos los valores en la DB
-    conf_alerta = db.query(models.Configuracion).filter_by(clave="alerta_cada").first()
-    conf_limite = db.query(models.Configuracion).filter_by(clave="limite_caja").first()
-    limite_defectuosa = (
-        db.query(models.Configuracion).filter_by(clave="limite_defectuosa").first()
-    )
-    len_dmc = db.query(models.Configuracion).filter_by(clave="len_dmc").first()
-    caducidad_proxima = (
-        db.query(models.Configuracion).filter_by(clave="caducidad_proxima_dias").first()
-    )
-    limite_caducidad_proxima = (
+    modelo = obtener_modelo_valido(modelo)
+
+    configuraciones = (
         db.query(models.Configuracion)
-        .filter_by(clave="limite_caducidad_proxima")
-        .first()
+        .filter(models.Configuracion.modelo == modelo)
+        .all()
     )
 
-    # Si no existen, devolvemos valores por defecto (Safety check)
+    valores = {
+        configuracion.clave: configuracion.valor for configuracion in configuraciones
+    }
+
+    def get_valor_entero(clave: str, defecto: int) -> int:
+        try:
+            valor = int(valores.get(clave, defecto))
+            return valor if valor > 0 else defecto
+        except (TypeError, ValueError):
+            return defecto
+
     return {
-        "alerta_cada": int(conf_alerta.valor) if conf_alerta else 15,
-        "limite_caja": int(conf_limite.valor) if conf_limite else 180,
-        "limite_defectuosa": int(limite_defectuosa.valor) if limite_defectuosa else 180,
-        "limite_caducidad_proxima": (
-            int(limite_caducidad_proxima.valor) if limite_caducidad_proxima else 180
+        "alerta_cada": get_valor_entero("alerta_cada", 15),
+        "limite_caja": get_valor_entero("limite_caja", 180),
+        "limite_defectuosa": get_valor_entero("limite_defectuosa", 180),
+        "limite_caducidad_proxima": get_valor_entero(
+            "limite_caducidad_proxima",
+            180,
         ),
-        "len_dmc": int(len_dmc.valor) if len_dmc else 87,
-        "caducidad_proxima_dias": (
-            int(caducidad_proxima.valor) if caducidad_proxima else 30
+        "len_dmc": get_valor_entero("len_dmc", 87),
+        "caducidad_proxima_dias": get_valor_entero(
+            "caducidad_proxima_dias",
+            30,
         ),
     }
 
@@ -47,17 +62,30 @@ def obtener_configuracion(
 @router.put("/config")
 def actualizar_configuracion(
     datos: schemas.ConfigInput,
+    modelo: str = "MODELO1",
     db: Session = Depends(get_db),
     current_user: models.UsuarioAdmin = Depends(
         auth.require_roles(auth.ROL_SUPERADMIN)
     ),
 ):
     # Buscamos la clave (ej: "alerta_cada")
-    config = db.query(models.Configuracion).filter_by(clave=datos.clave).first()
+    modelo = obtener_modelo_valido(modelo)
+    config = (
+        db.query(models.Configuracion)
+        .filter(
+            models.Configuracion.modelo == modelo,
+            models.Configuracion.clave == datos.clave,
+        )
+        .first()
+    )
 
     if not config:
         # Si no existe, la creamos
-        config = models.Configuracion(clave=datos.clave, valor=datos.valor)
+        config = models.Configuracion(
+            modelo=modelo,
+            clave=datos.clave,
+            valor=datos.valor,
+        )
         db.add(config)
         mensaje = "✅ Configuración creada"
     else:
@@ -66,4 +94,9 @@ def actualizar_configuracion(
         mensaje = "🔄 Configuración actualizada"
 
     db.commit()
-    return {"mensaje": mensaje, "clave": datos.clave, "nuevo_valor": datos.valor}
+    return {
+        "mensaje": mensaje,
+        "modelo": modelo,
+        "clave": datos.clave,
+        "nuevo_valor": datos.valor,
+    }

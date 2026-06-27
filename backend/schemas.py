@@ -15,11 +15,12 @@ class CeldaInput(BaseModel):
 # El paquete completo de 180 celdas
 class ReempaqueInput(BaseModel):
     usuario_id: str
-    celdas: List[CeldaInput]  # Lista de 180 celdas
+    celdas: List[CeldaInput]
     fecha_inicio: datetime
     fecha_fin: datetime
-    is_defective: Optional[bool] = False
+    modelo: Optional[str] = "MODELO1"
     tipo_caja: Optional[str] = None
+    is_defective: Optional[bool] = False  # retrocompatibilidad
 
 
 # Lo que devuelve el servidor al operario (para imprimir la etiqueta)
@@ -84,6 +85,7 @@ class CajaConCeldas(BaseModel):
     fecha_caducidad_caja: Optional[date]
     is_defective: bool
     total_celdas: int
+    modelo: str
     celdas: List[CeldaDetalle]
     tipo_caja: Optional[str] = None
 

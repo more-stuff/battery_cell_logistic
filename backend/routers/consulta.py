@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import (
     Session,
@@ -13,10 +13,24 @@ import io
 
 from database import get_db
 import models, auth
+from box_rules import normalizar_modelo
 
 router = APIRouter(prefix="/admin", tags=["Consulta"])
 
 BATCH_CSV = 500  # filas por chunk HTTP → 50k filas = 100 chunks en vez de 50.000
+
+
+def normalizar_modelo_filtro(modelo: Optional[str]) -> Optional[str]:
+    if not modelo:
+        return None
+
+    try:
+        return normalizar_modelo(modelo)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e),
+        )
 
 
 # --- FUNCIÓN AUXILIAR PARA FILTROS ---
@@ -30,6 +44,7 @@ def aplicar_filtros(
     fecha_caducidad,
     is_defective,
     tipo_caja,
+    modelo,
     id_temporal,
     usuario_id,
 ):
@@ -89,6 +104,10 @@ def aplicar_filtros(
         # Fallback retrocompatible por si alguna pantalla vieja sigue mandando is_defective
         query = query.filter(models.CajaReempaque.is_defective == is_defective)
 
+    if modelo:
+        modelo = normalizar_modelo_filtro(modelo)
+        query = query.filter(models.CajaReempaque.modelo == modelo)
+
     return query
 
 
@@ -113,6 +132,7 @@ def construir_fila(celda, caja, palet):
         "is_defective": getattr(caja, "is_defective", False),
         "tipo_caja": getattr(caja, "tipo_caja", None)
         or ("DEFECTUOSA" if getattr(caja, "is_defective", False) else "NORMAL"),
+        "modelo": normalizar_modelo(getattr(caja, "modelo", None)) or "MODELO1",
         "hu_silena": getattr(caja, "hu_silena_outbound", "") or "",
         "ubicacion": getattr(caja, "ubicacion_estanteria", "") or "",
         "n_salida": getattr(caja, "numero_salida_delivery", "") or "",
@@ -132,6 +152,7 @@ def buscar_preview(
     fecha_caducidad: Optional[date] = None,
     is_defective: Optional[bool] = None,
     tipo_caja: Optional[str] = None,
+    modelo: Optional[str] = None,
     id_temporal: Optional[str] = None,
     usuario_id: Optional[str] = None,
     cols: Optional[str] = Query(None),
@@ -155,6 +176,7 @@ def buscar_preview(
         fecha_caducidad,
         is_defective,
         tipo_caja,
+        modelo,
         id_temporal,
         usuario_id,
     )
@@ -193,6 +215,7 @@ def exportar_csv(
     fecha_caducidad: Optional[date] = None,
     is_defective: Optional[bool] = None,
     tipo_caja: Optional[str] = None,
+    modelo: Optional[str] = None,
     id_temporal: Optional[str] = None,
     usuario_id: Optional[str] = None,
     cols: Optional[str] = Query(None),
@@ -220,6 +243,7 @@ def exportar_csv(
         fecha_caducidad,
         is_defective,
         tipo_caja,
+        modelo,
         id_temporal,
         usuario_id,
     )
