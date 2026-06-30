@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE cajas_reempaque
+    ADD COLUMN IF NOT EXISTS blackbox_id VARCHAR(100);
+
+COMMIT;

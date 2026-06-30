@@ -18,6 +18,8 @@ Object.values(audios).forEach((audio) => (audio.preload = "auto"));
 export default function PanelEscaneo({
   hu,
   setHu,
+  blackboxId,
+  setBlackboxId,
   celda,
   setCelda,
   onEscanear,
@@ -29,6 +31,7 @@ export default function PanelEscaneo({
   tipoCaja = TIPOS_CAJA.NORMAL,
 }) {
   const inputRef = useRef(null);
+  const blackboxInputRef = useRef(null);
   const [bloqueado, setBloqueado] = useState(false);
 
   const tipoUI = getTipoCajaUI(tipoCaja);
@@ -159,6 +162,21 @@ export default function PanelEscaneo({
   };
 
   const handleFinalizar = () => {
+    const blackboxIdLimpio = String(blackboxId ?? "").trim();
+
+    if (!blackboxIdLimpio) {
+      Swal.fire({
+        icon: "warning",
+        title: "Falta Blackbox ID",
+        text: "Escanea la Blackbox ID antes de finalizar la caja.",
+        confirmButtonColor: tipoUI.colorPrincipal || "#d97706",
+      }).then(() => {
+        blackboxInputRef.current?.focus();
+      });
+
+      return;
+    }
+
     const husUnicos = [
       ...new Set(celdas.map((c) => c.hu_asociado).filter((h) => h)),
     ];
@@ -200,6 +218,31 @@ export default function PanelEscaneo({
                ${htmlHus}
              </div>
            </div>
+           <div style="
+            margin-top: 14px;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #b9d9ee;
+            background: #edf7ff;
+          ">
+            <span style="
+              display: block;
+              margin-bottom: 4px;
+              color: #55708a;
+              font-size: 0.75em;
+              font-weight: bold;
+              text-transform: uppercase;
+            ">
+              Blackbox ID:
+            </span>
+
+            <strong style="
+              color: #1f5d91;
+              font-size: 1.15em;
+            ">
+              ${blackboxIdLimpio}
+            </strong>
+          </div>
         </div>
       `,
       icon: "question",
@@ -211,7 +254,7 @@ export default function PanelEscaneo({
       width: 500,
     }).then((result) => {
       if (result.isConfirmed) {
-        onEnviar();
+        onEnviar(blackboxIdLimpio);
       }
     });
   };
@@ -251,6 +294,18 @@ export default function PanelEscaneo({
             value={hu}
             onChange={(e) => setHu(e.target.value)}
             placeholder="Escanear Caja..."
+          />
+        </div>
+
+        <div className="form-group">
+          <label>BLACKBOX ID</label>
+
+          <input
+            ref={blackboxInputRef}
+            className="input-big input-hu"
+            value={blackboxId}
+            onChange={(e) => setBlackboxId(e.target.value)}
+            placeholder="Escanear Blackbox..."
           />
         </div>
 

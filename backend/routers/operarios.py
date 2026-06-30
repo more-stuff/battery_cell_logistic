@@ -46,6 +46,14 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
                 detail=str(e),
             )
 
+        blackbox_id = datos.blackbox_id.strip()
+
+        if not blackbox_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Debes escanear la Blackbox ID antes de finalizar la caja.",
+            )
+
         if tipo_caja not in TIPOS_CAJA_VALIDOS:
             raise HTTPException(
                 status_code=400,
@@ -170,6 +178,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
             is_defective=(tipo_caja == TIPO_DEFECTUOSA),
             tipo_caja=tipo_caja,
             modelo=modelo,
+            blackbox_id=blackbox_id,
         )
 
         db.add(nueva_caja)

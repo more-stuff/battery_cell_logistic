@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
 import { TIPO_CAJA_UI } from "../services/tipoCajaUI";
-import { TIPOS_CELDA, TIPOS_CELDA_UI } from "../services/tiposCelda";
+import { MODELO_POR_DEFECTO, MODELOS, MODELOS_UI } from "../services/modelos";
+
 import { getLoginUI, getLoginStyles } from "../styles/Login.styles";
 
 export default function Login({
@@ -10,8 +11,8 @@ export default function Login({
   onLogin,
   tipoCaja = TIPOS_CAJA.NORMAL,
   setTipoCaja,
-  tipoCelda = TIPOS_CELDA.CELDA,
-  setTipoCelda,
+  modelo = "",
+  setModelo,
 
   // Compatibilidad temporal con pantallas antiguas.
   // Cuando todas usen tipoCaja, se puede borrar.
@@ -29,12 +30,14 @@ export default function Login({
     isHover,
   });
 
+  const puedeIniciar = usuario.trim().length > 0 && Boolean(modelo);
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (usuario.trim().length > 0) {
-      onLogin();
-    }
+    if (!puedeIniciar) return;
+
+    onLogin();
   };
 
   return (
@@ -50,16 +53,21 @@ export default function Login({
 
         <form onSubmit={handleSubmit}>
           <div style={styles.selectorGroup}>
-            <label style={styles.label}>Tipo de celda</label>
+            <label style={styles.label}>Modelo de celda</label>
 
             <select
-              value={tipoCelda}
-              onChange={(e) => setTipoCelda?.(e.target.value)}
+              value={modelo}
+              onChange={(e) => setModelo?.(e.target.value)}
               style={styles.select}
+              required
             >
-              {Object.values(TIPOS_CELDA).map((tipo) => (
-                <option key={tipo} value={tipo}>
-                  {TIPOS_CELDA_UI[tipo]?.label ?? tipo}
+              <option value="" disabled>
+                Selecciona el modelo…
+              </option>
+
+              {Object.values(MODELOS).map((modeloItem) => (
+                <option key={modeloItem} value={modeloItem}>
+                  {MODELOS_UI[modeloItem]?.label ?? modeloItem}
                 </option>
               ))}
             </select>

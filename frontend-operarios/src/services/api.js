@@ -213,25 +213,41 @@ export const descargarCSV = async (filtros) => {
   link.remove();
   window.URL.revokeObjectURL(url);
 };
-
-export const obtenerConfiguracion = async () => {
+export const obtenerConfiguracion = async (modelo = "MODELO1") => {
   try {
-    // CAMBIO: La ruta ahora es /admin/config
-    const response = await api.get(`/admin/config`);
+    const response = await api.get("/admin/config", {
+      params: { modelo },
+    });
+
+    console.log(response.data);
     return response.data;
   } catch (error) {
-    console.error("Usando config por defecto", error);
-    return { alerta_cada: 15, limite_caja: 180 };
+    console.error("Usando configuración por defecto", error);
+
+    return {
+      alerta_cada: 15,
+      limite_caja: 180,
+      limite_defectuosa: 180,
+      limite_caducidad_proxima: 180,
+      len_dmc: 87,
+      caducidad_proxima_dias: 30,
+    };
   }
 };
 
-export const guardarConfiguracion = async (clave, valor) => {
+export const guardarConfiguracion = async (modelo, clave, valor) => {
   try {
-    // Ajusta la URL si tu endpoint está en /admin/config
-    const response = await api.put(`/admin/config`, {
-      clave: clave,
-      valor: String(valor), // Lo enviamos siempre como string
-    });
+    const response = await api.put(
+      "/admin/config",
+      {
+        clave,
+        valor: String(valor),
+      },
+      {
+        params: { modelo },
+      },
+    );
+
     return response.data;
   } catch (error) {
     console.error("Error guardando configuración", error);

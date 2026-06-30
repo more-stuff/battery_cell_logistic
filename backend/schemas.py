@@ -20,6 +20,7 @@ class ReempaqueInput(BaseModel):
     fecha_fin: datetime
     modelo: Optional[str] = "MODELO1"
     tipo_caja: Optional[str] = None
+    blackbox_id: str
     is_defective: Optional[bool] = False  # retrocompatibilidad
 
 

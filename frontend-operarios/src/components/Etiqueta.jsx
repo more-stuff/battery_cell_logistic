@@ -3,7 +3,7 @@
 import Barcode from "react-barcode";
 import { getTipoCajaUI } from "../services/tipoCajaUI";
 import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
-import { getTipoCeldaUI, TIPOS_CELDA } from "../services/tiposCelda";
+import { MODELO_POR_DEFECTO, getModeloUI } from "../services/modelos";
 
 // Ya no necesitamos forwardRef ni ref aquí, porque el 'padre' se encarga de imprimir
 export const Etiqueta = ({
@@ -12,10 +12,10 @@ export const Etiqueta = ({
   op_id,
   fechaCaducidadCaja,
   tipoCaja = TIPOS_CAJA.NORMAL,
-  tipoCelda = TIPOS_CELDA.CELDA,
+  modelo = MODELO_POR_DEFECTO,
 }) => {
   const tipoCajaUI = getTipoCajaUI(tipoCaja);
-  const tipoCeldaUI = getTipoCeldaUI(tipoCelda);
+  const tipoCeldaUI = getModeloUI(modelo);
   return (
     <div style={estilos.contenedor}>
       <div style={estilos.cabecera}>
@@ -43,7 +43,7 @@ export const Etiqueta = ({
       </div>
 
       <div style={estilos.infoExtra}>
-        <strong>Tipo celda:</strong> {tipoCeldaUI.label || tipoCelda}
+        <strong>Modelo:</strong> {tipoCeldaUI.label || modelo}
       </div>
 
       <div style={estilos.infoExtra}>

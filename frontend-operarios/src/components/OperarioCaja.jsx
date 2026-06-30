@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 import { usePaquete } from "../hooks/usePaquete";
 import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
 import { getTipoCajaUI } from "../services/tipoCajaUI";
+import { MODELO_POR_DEFECTO } from "../services/modelos";
 import { useTitulo } from "../hooks/useTitulo";
 
 import Header from "./Header";
@@ -17,17 +18,23 @@ import "../styles/Operario.css";
 export default function OperarioCaja({
   usuario,
   tipoCaja = TIPOS_CAJA.NORMAL,
-  tipoCelda,
+  modelo = MODELO_POR_DEFECTO,
   onVolverLogin,
 }) {
   const tipoUI = getTipoCajaUI(tipoCaja);
   const esNormal = tipoCaja === TIPOS_CAJA.NORMAL;
 
-  useTitulo(tipoUI.label ? `Operario ${tipoUI.label}` : "Operario");
+  useTitulo(
+    tipoUI.label
+      ? `Operario ${modelo} · ${tipoUI.label}`
+      : `Operario ${modelo}`,
+  );
 
   const {
     huActual,
     setHuActual,
+    blackboxId,
+    setBlackboxId,
     celdaInput,
     setCeldaInput,
     celdas,
@@ -41,7 +48,7 @@ export default function OperarioCaja({
     enviarDatos,
     limite,
     level_size,
-  } = usePaquete(usuario, tipoCaja);
+  } = usePaquete(usuario, tipoCaja, modelo);
 
   const nivelActual =
     celdas.length === 0 ? 0 : Math.floor((celdas.length - 1) / level_size);
@@ -73,7 +80,7 @@ export default function OperarioCaja({
 
   const handlePrint = useReactToPrint({
     contentRef: componentRef,
-    documentTitle: `${tipoUI.documentTitle}_${idGuardado}`,
+    documentTitle: `${modelo}_${tipoUI.documentTitle}_${idGuardado}`,
     onAfterPrint: () => console.log("Impresión lanzada"),
   });
 
@@ -90,6 +97,7 @@ export default function OperarioCaja({
     }).then((result) => {
       if (result.isConfirmed) {
         resetProceso();
+
         const Toast = Swal.mixin({
           toast: true,
           position: "top-end",
@@ -101,13 +109,16 @@ export default function OperarioCaja({
       }
     });
   };
+  const handleSiguienteCaja = () => {
+    resetProceso();
+  };
   const handleVolverLogin = () => {
     if (!onVolverLogin) return;
 
     if (celdas.length > 0) {
       Swal.fire({
         title: "¿Volver al login?",
-        text: "La caja en curso se conservará. Podrás recuperarla al volver a entrar con el mismo usuario y tipo de caja.",
+        text: "La caja en curso se conservará. Podrás recuperarla al volver a entrar con el mismo usuario, modelo y tipo de caja.",
         icon: "warning",
         showCancelButton: true,
         confirmButtonColor: tipoUI.colorPrincipal,
@@ -170,7 +181,7 @@ export default function OperarioCaja({
                   op_id={usuario}
                   fechaCaducidadCaja={fechaCaducidadCajaGuardada}
                   tipoCaja={tipoCaja}
-                  tipoCelda={tipoCelda}
+                  modelo={modelo}
                 />
               </div>
             </div>
@@ -192,7 +203,7 @@ export default function OperarioCaja({
               </button>
 
               <button
-                onClick={resetProceso}
+                onClick={handleSiguienteCaja}
                 style={{
                   flex: 1,
                   padding: "15px",
@@ -214,6 +225,7 @@ export default function OperarioCaja({
         usuario={usuario}
         progreso={celdas.length}
         total={limite}
+        modelo={modelo}
         onVolverLogin={handleVolverLogin}
       />
 
@@ -244,6 +256,8 @@ export default function OperarioCaja({
           limite={limite}
           celdas={celdas}
           tipoCaja={tipoCaja}
+          blackboxId={blackboxId}
+          setBlackboxId={setBlackboxId}
         />
 
         <div
@@ -278,7 +292,7 @@ export default function OperarioCaja({
             op_id={usuario}
             fechaCaducidadCaja={fechaCaducidadCajaGuardada}
             tipoCaja={tipoCaja}
-            tipoCelda={tipoCelda}
+            modelo={modelo}
           />
         </div>
       </div>

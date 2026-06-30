@@ -39,6 +39,7 @@ def aplicar_filtros(
     dmc,
     hu_entrada,
     hu_salida,
+    blackbox_id,
     fecha_inicio,
     fecha_fin,
     fecha_caducidad,
@@ -73,6 +74,10 @@ def aplicar_filtros(
     if usuario_id:
         usuario_id = unquote(usuario_id).strip()
         query = query.filter(models.CajaReempaque.usuario_id == usuario_id)
+
+    if blackbox_id:
+        blackbox_id = unquote(blackbox_id).strip()
+        query = query.filter(models.CajaReempaque.blackbox_id == blackbox_id)
 
     if fecha_caducidad:
         hoy = date.today()
@@ -133,6 +138,7 @@ def construir_fila(celda, caja, palet):
         "tipo_caja": getattr(caja, "tipo_caja", None)
         or ("DEFECTUOSA" if getattr(caja, "is_defective", False) else "NORMAL"),
         "modelo": normalizar_modelo(getattr(caja, "modelo", None)) or "MODELO1",
+        "blackbox_id": getattr(caja, "blackbox_id", "") or "",
         "hu_silena": getattr(caja, "hu_silena_outbound", "") or "",
         "ubicacion": getattr(caja, "ubicacion_estanteria", "") or "",
         "n_salida": getattr(caja, "numero_salida_delivery", "") or "",
@@ -147,6 +153,7 @@ def buscar_preview(
     dmc: Optional[str] = None,
     hu_entrada: Optional[str] = None,
     hu_salida: Optional[str] = None,
+    blackbox_id: Optional[str] = None,
     fecha_inicio: Optional[datetime] = None,
     fecha_fin: Optional[datetime] = None,
     fecha_caducidad: Optional[date] = None,
@@ -171,6 +178,7 @@ def buscar_preview(
         dmc,
         hu_entrada,
         hu_salida,
+        blackbox_id,
         fecha_inicio,
         fecha_fin,
         fecha_caducidad,
@@ -210,6 +218,7 @@ def exportar_csv(
     dmc: Optional[str] = None,
     hu_entrada: Optional[str] = None,
     hu_salida: Optional[str] = None,
+    blackbox_id: Optional[str] = None,
     fecha_inicio: Optional[datetime] = None,
     fecha_fin: Optional[datetime] = None,
     fecha_caducidad: Optional[date] = None,
@@ -238,6 +247,7 @@ def exportar_csv(
         dmc,
         hu_entrada,
         hu_salida,
+        blackbox_id,
         fecha_inicio,
         fecha_fin,
         fecha_caducidad,

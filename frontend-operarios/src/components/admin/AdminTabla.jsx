@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { estilos } from "../../styles/AdminConsulta.styles";
 
 const col_colors = {
@@ -13,6 +14,40 @@ export const AdminTabla = ({
   seleccionadas,
   loading,
 }) => {
+  const scrollSuperiorRef = useRef(null);
+  const tablaWrapperRef = useRef(null);
+  const anchoScrollRef = useRef(null);
+
+  useEffect(() => {
+    const actualizarAncho = () => {
+      if (!tablaWrapperRef.current || !anchoScrollRef.current) return;
+
+      anchoScrollRef.current.style.width = `${tablaWrapperRef.current.scrollWidth}px`;
+    };
+
+    actualizarAncho();
+
+    const observer = new ResizeObserver(actualizarAncho);
+
+    if (tablaWrapperRef.current) {
+      observer.observe(tablaWrapperRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [resultados, seleccionadas]);
+
+  const sincronizarDesdeSuperior = (event) => {
+    if (!tablaWrapperRef.current) return;
+
+    tablaWrapperRef.current.scrollLeft = event.currentTarget.scrollLeft;
+  };
+
+  const sincronizarDesdeTabla = (event) => {
+    if (!scrollSuperiorRef.current) return;
+
+    scrollSuperiorRef.current.scrollLeft = event.currentTarget.scrollLeft;
+  };
+
   // Filtramos las columnas activas
   const columnasActivas = disponibles.filter((c) =>
     seleccionadas.includes(c.id),
@@ -47,7 +82,22 @@ export const AdminTabla = ({
 
   return (
     <div style={estilos.cardTabla}>
-      <div style={estilos.tablaWrapper}>
+      <div
+        ref={scrollSuperiorRef}
+        onScroll={sincronizarDesdeSuperior}
+        style={estilos.scrollHorizontalSuperior}
+      >
+        <div
+          ref={anchoScrollRef}
+          style={estilos.scrollHorizontalSuperiorContenido}
+        />
+      </div>
+
+      <div
+        ref={tablaWrapperRef}
+        onScroll={sincronizarDesdeTabla}
+        style={estilos.tablaWrapper}
+      >
         <table style={estilos.tablaModern}>
           <thead>
             <tr>

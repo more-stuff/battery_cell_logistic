@@ -1,7 +1,7 @@
 export const estilos = {
   contenedorPrincipal: {
     padding: "30px",
-    minHeight: "100vh", // <--- CAMBIO CLAVE: Ocupa toda la altura de la pantalla
+    minHeight: "100vh",
     display: "flex",
     flexDirection: "column",
     boxSizing: "border-box",
@@ -10,9 +10,11 @@ export const estilos = {
     backgroundColor: "#f3f4f6",
     color: "#1f2937",
   },
+
   headerContainer: {
     marginBottom: "20px",
   },
+
   titulo: {
     fontSize: "1.8rem",
     fontWeight: "800",
@@ -20,6 +22,7 @@ export const estilos = {
     margin: "0 0 5px 0",
     letterSpacing: "-0.025em",
   },
+
   subtitulo: {
     color: "#6b7280",
     margin: 0,
@@ -34,19 +37,36 @@ export const estilos = {
     boxShadow:
       "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
     marginBottom: "25px",
-    flexShrink: 0, // Evita que los filtros se aplasten si falta espacio
+    flexShrink: 0,
   },
+
   gridFiltros: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
+    gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
     gap: "30px",
     marginBottom: "25px",
   },
+
   columnaGrid: {
     display: "flex",
     flexDirection: "column",
     gap: "15px",
+    minWidth: 0,
   },
+
+  filtrosCategoriaFila: {
+    gridColumn: "1 / -1",
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+    gap: "30px",
+    alignItems: "start",
+    paddingTop: "4px",
+  },
+
+  filtroCategoriaBloque: {
+    minWidth: 0,
+  },
+
   labelModern: {
     fontSize: "0.85rem",
     fontWeight: "600",
@@ -56,6 +76,7 @@ export const estilos = {
     textTransform: "uppercase",
     letterSpacing: "0.05em",
   },
+
   inputModern: {
     width: "100%",
     padding: "12px 15px",
@@ -68,6 +89,36 @@ export const estilos = {
     boxSizing: "border-box",
   },
 
+  caducidadRapida: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "10px",
+  },
+
+  botonCaducidadProxima: {
+    minHeight: "42px",
+    padding: "0 14px",
+    border: "1px solid #f5c66d",
+    borderRadius: "8px",
+    backgroundColor: "#fff8e8",
+    color: "#a16207",
+    cursor: "pointer",
+    fontSize: "0.88rem",
+    fontWeight: "700",
+  },
+
+  botonCaducadas: {
+    minHeight: "42px",
+    padding: "0 14px",
+    border: "1px solid #f0b7a9",
+    borderRadius: "8px",
+    backgroundColor: "#fff2ef",
+    color: "#b42318",
+    cursor: "pointer",
+    fontSize: "0.88rem",
+    fontWeight: "700",
+  },
+
   // --- TOOLBAR ---
   toolbarFooter: {
     display: "flex",
@@ -76,21 +127,25 @@ export const estilos = {
     paddingTop: "20px",
     borderTop: "1px solid #e5e7eb",
   },
+
   toolbarLeft: {
     display: "flex",
     alignItems: "center",
     gap: "15px",
   },
+
   labelAtajos: {
     fontSize: "0.75rem",
     fontWeight: "700",
     color: "#9ca3af",
     letterSpacing: "0.05em",
   },
+
   atajosGroup: {
     display: "flex",
     gap: "8px",
   },
+
   btnAtajo: {
     padding: "8px 16px",
     backgroundColor: "#f3f4f6",
@@ -102,11 +157,13 @@ export const estilos = {
     color: "#4b5563",
     transition: "all 0.2s",
   },
+
   dividerVertical: {
     height: "24px",
     width: "1px",
     backgroundColor: "#d1d5db",
   },
+
   btnLimpiarModern: {
     display: "flex",
     alignItems: "center",
@@ -121,10 +178,12 @@ export const estilos = {
     color: "#ef4444",
     transition: "all 0.2s",
   },
+
   toolbarRight: {
     display: "flex",
     gap: "12px",
   },
+
   btnActionPrimary: {
     padding: "12px 24px",
     backgroundColor: "#2563eb",
@@ -136,6 +195,7 @@ export const estilos = {
     fontSize: "0.95rem",
     boxShadow: "0 4px 6px -1px rgba(37, 99, 235, 0.2)",
   },
+
   btnActionSecondary: {
     padding: "12px 24px",
     backgroundColor: "#059669",
@@ -150,8 +210,8 @@ export const estilos = {
 
   // --- TABLA RESULTADOS ---
   cardTabla: {
-    flex: 1, // Intenta ocupar el espacio restante
-    minHeight: "600px", // <--- CAMBIO CLAVE: Altura mínima garantizada (hazla más grande si quieres, ej: 800px)
+    flex: 1,
+    minHeight: "600px",
     backgroundColor: "white",
     borderRadius: "16px",
     boxShadow:
@@ -160,16 +220,32 @@ export const estilos = {
     display: "flex",
     flexDirection: "column",
   },
+  scrollHorizontalSuperior: {
+    flexShrink: 0,
+    height: "18px",
+    overflowX: "auto",
+    overflowY: "hidden",
+    backgroundColor: "#f8fafc",
+    borderBottom: "1px solid #e5e7eb",
+  },
+
+  scrollHorizontalSuperiorContenido: {
+    height: "1px",
+    minWidth: "2200px",
+  },
+
   tablaWrapper: {
     flex: 1,
     overflow: "auto",
   },
+
   tablaModern: {
     width: "100%",
     borderCollapse: "collapse",
-    minWidth: "2200px", // Scroll horizontal
+    minWidth: "2200px",
     fontSize: "0.9rem",
   },
+
   thModern: {
     padding: "16px 12px",
     textAlign: "left",
@@ -185,12 +261,14 @@ export const estilos = {
     whiteSpace: "nowrap",
     zIndex: 10,
   },
+
   tdModern: {
     padding: "14px 12px",
     color: "#1f2937",
     whiteSpace: "nowrap",
     verticalAlign: "middle",
   },
+
   emptyState: {
     padding: "80px",
     textAlign: "center",
@@ -202,6 +280,7 @@ export const estilos = {
     fontWeight: "500",
     fontSize: "1.1rem",
   },
+
   badgeOK: {
     backgroundColor: "#dcfce7",
     color: "#166534",
@@ -210,6 +289,7 @@ export const estilos = {
     fontSize: "0.75rem",
     fontWeight: "700",
   },
+
   badgeNeutral: {
     backgroundColor: "#f3f4f6",
     color: "#4b5563",
@@ -218,17 +298,20 @@ export const estilos = {
     fontSize: "0.75rem",
     fontWeight: "600",
   },
+
   buttonGroup: {
     display: "flex",
     width: "100%",
-    height: "42px", // Misma altura que tus inputs
+    height: "42px",
     borderRadius: "6px",
     overflow: "hidden",
-    border: "1px solid #cbd5e1", // Color borde gris suave
+    border: "1px solid #cbd5e1",
     backgroundColor: "white",
   },
+
   btnSegment: {
-    flex: 1, // Ocupan exactamente 33% cada uno
+    flex: 1,
+    minWidth: 0,
     border: "none",
     backgroundColor: "white",
     cursor: "pointer",
@@ -240,19 +323,32 @@ export const estilos = {
     alignItems: "center",
     justifyContent: "center",
     gap: "5px",
-    padding: "0",
+    padding: "0 8px",
+    whiteSpace: "nowrap",
   },
-  // Estilos cuando están activos
+
   activeTodos: {
-    backgroundColor: "#3b82f6", // Azul
+    backgroundColor: "#3b82f6",
     color: "white",
   },
+
   activeOK: {
-    backgroundColor: "#22c55e", // Verde
+    backgroundColor: "#22c55e",
     color: "white",
   },
+
   activeNOK: {
-    backgroundColor: "#ef4444", // Rojo
+    backgroundColor: "#ef4444",
+    color: "white",
+  },
+
+  activeProxima: {
+    backgroundColor: "#f59e0b",
+    color: "white",
+  },
+
+  activeModelo: {
+    backgroundColor: "#6366f1",
     color: "white",
   },
 };

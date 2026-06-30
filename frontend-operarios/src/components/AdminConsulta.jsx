@@ -39,6 +39,8 @@ const COLUMNAS_DISPONIBLES = [
   { id: "operario", label: "👷 Operario (Interno)", group: "repacking_area" },
   { id: "dmc", label: "DMC (Celda)", group: "repacking_area" },
   { id: "id_temporal", label: "ID Temporal", group: "repacking_area" },
+  { id: "modelo", label: "Modelo", group: "repacking_area" },
+  { id: "blackbox_id", label: "Blackbox ID", group: "repacking_area" },
   { id: "caducidad_celda", label: "Cad. Celda", group: "repacking_area" },
   { id: "caducidad_antigua", label: "Cad. Antigua", group: "repacking_area" },
   { id: "estado_calidad", label: "Calidad estado", group: "repacking_area" },
@@ -67,6 +69,8 @@ export const AdminConsulta = () => {
     fecha_inicio: "",
     fecha_fin: "",
     tipo_caja: "",
+    modelo: "",
+    blackbox_id: "",
     is_defective: "",
     id_temporal: "",
     usuario_id: "",
@@ -113,8 +117,18 @@ export const AdminConsulta = () => {
   };
 
   const aplicarCaducidadProxima = async () => {
+    if (!filtros.modelo) {
+      Swal.fire({
+        icon: "info",
+        title: "Selecciona un modelo",
+        text: "La caducidad próxima tiene una configuración distinta para cada modelo.",
+      });
+
+      return;
+    }
+
     try {
-      const config = await obtenerConfiguracion();
+      const config = await obtenerConfiguracion(filtros.modelo);
       const dias = Number(config.caducidad_proxima_dias || 30);
 
       const fechaLimite = new Date();
@@ -127,13 +141,11 @@ export const AdminConsulta = () => {
     } catch (error) {
       console.error("Error aplicando caducidad próxima:", error);
 
-      const fechaLimite = new Date();
-      fechaLimite.setDate(fechaLimite.getDate() + 30);
-
-      setFiltros((prev) => ({
-        ...prev,
-        fecha_caducidad: formatDate(fechaLimite),
-      }));
+      Swal.fire({
+        icon: "error",
+        title: "No se ha podido cargar la configuración",
+        text: "No se puede calcular la caducidad próxima para este modelo.",
+      });
     }
   };
 
@@ -156,10 +168,13 @@ export const AdminConsulta = () => {
       fecha_inicio: "",
       fecha_fin: "",
       tipo_caja: "",
+      modelo: "",
+      blackbox_id: "",
       is_defective: "",
       id_temporal: "",
       usuario_id: "",
     });
+
     setResultados([]);
   };
   // --- HANDLERS ---

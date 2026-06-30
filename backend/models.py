@@ -82,6 +82,7 @@ class CajaReempaque(Base):
     celdas = relationship(
         "Celda", back_populates="caja_destino", cascade="all, delete-orphan"
     )
+    blackbox_id = Column(String(100), nullable=True)
 
 
 # ==============================================================================

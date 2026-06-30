@@ -35,26 +35,16 @@ export const AdminModificarCaja = () => {
   const [fechaError, setFechaError] = useState("");
 
   useEffect(() => {
-    const cargarReglas = async () => {
+    const cargarBlacklist = async () => {
       try {
-        const [datosConfig, listaDefectuosos] = await Promise.all([
-          obtenerConfiguracion(),
-          obtenerDmcDefectuosos(),
-        ]);
-
-        setConfig({
-          caducidad_proxima_dias: Number(
-            datosConfig.caducidad_proxima_dias || 30,
-          ),
-        });
-
+        const listaDefectuosos = await obtenerDmcDefectuosos();
         setBlacklist(new Set(listaDefectuosos));
       } catch (error) {
-        console.error("Error cargando reglas de validación:", error);
+        console.error("Error cargando lista de defectuosos:", error);
       }
     };
 
-    cargarReglas();
+    cargarBlacklist();
   }, []);
 
   const getTipoCajaActual = () => {
@@ -107,10 +97,20 @@ export const AdminModificarCaja = () => {
     setLoading(true);
 
     try {
+      // 1. Recuperamos la caja: aquí ya viene su modelo real.
       const data = await getCeldasCaja(id);
 
-      console.log("CAJA RECIBIDA:", data);
+      // 2. Cargamos la configuración del modelo de ESA caja.
+      const modeloCaja = data.modelo || "MODELO1";
+      const datosConfig = await obtenerConfiguracion(modeloCaja);
 
+      setConfig({
+        caducidad_proxima_dias: Number(
+          datosConfig.caducidad_proxima_dias || 30,
+        ),
+      });
+
+      // Solo mostramos la caja cuando ya conocemos sus reglas correctas.
       setCaja(data);
       setFiltroDmc("");
       setCeldaElegida(null);
@@ -350,6 +350,10 @@ export const AdminModificarCaja = () => {
 
           <span>
             Caducidad caja: <b>{caja.fecha_caducidad_caja ?? "—"}</b>
+          </span>
+
+          <span style={estilos.badgeModelo}>
+            Modelo: <b>{caja.modelo || "MODELO1"}</b>
           </span>
 
           <span style={getEstiloTipoCaja()}>{getLabelTipoCaja()}</span>

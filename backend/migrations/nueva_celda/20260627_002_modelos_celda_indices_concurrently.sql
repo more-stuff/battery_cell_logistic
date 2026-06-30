@@ -8,3 +8,8 @@
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_cajas_reempaque_modelo
 ON cajas_reempaque (modelo);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS
+    ix_cajas_reempaque_blackbox_id
+ON cajas_reempaque (blackbox_id)
+WHERE blackbox_id IS NOT NULL;

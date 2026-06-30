@@ -1,11 +1,26 @@
-export default function Header({ usuario, progreso, total, onVolverLogin }) {
+export default function Header({
+  usuario,
+  progreso,
+  total,
+  modelo,
+  onVolverLogin,
+}) {
   const porcentaje = total > 0 ? (progreso / total) * 100 : 0;
 
   return (
     <header className="top-bar">
-      <div className="user-info">
-        <span className="label">Op:</span>
-        <strong>{usuario}</strong>
+      <div className="header-session">
+        <div className="user-info">
+          <span className="label">Op:</span>
+          <strong>{usuario}</strong>
+        </div>
+
+        {modelo && (
+          <div className="modelo-badge" title="Modelo de celda seleccionado">
+            <span>MODELO</span>
+            <strong>{modelo}</strong>
+          </div>
+        )}
       </div>
 
       <div className="progress-wrapper">
@@ -14,10 +29,7 @@ export default function Header({ usuario, progreso, total, onVolverLogin }) {
         </div>
 
         <div className="progress-track">
-          <div
-            className="progress-fill"
-            style={{ width: `${porcentaje}%` }}
-          ></div>
+          <div className="progress-fill" style={{ width: `${porcentaje}%` }} />
         </div>
       </div>
 

@@ -38,7 +38,7 @@ def obtener_configuracion(
     def get_valor_entero(clave: str, defecto: int) -> int:
         try:
             valor = int(valores.get(clave, defecto))
-            return valor if valor > 0 else defecto
+            return valor if valor > -2 else defecto
         except (TypeError, ValueError):
             return defecto
 

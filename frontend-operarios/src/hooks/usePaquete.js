@@ -16,9 +16,15 @@ import {
   validarCeldaPorTipoCaja,
 } from "../services/validarCeldaPorTipoCaja";
 
+import { MODELO_POR_DEFECTO } from "../services/modelos";
+
 import Swal from "sweetalert2";
 
-export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
+export const usePaquete = (
+  usuario,
+  tipoCaja = TIPOS_CAJA.NORMAL,
+  modelo = MODELO_POR_DEFECTO,
+) => {
   const is_defective = tipoCaja === TIPOS_CAJA.DEFECTUOSA;
   const is_caducidad_proxima = tipoCaja === TIPOS_CAJA.CADUCIDAD_PROXIMA;
 
@@ -32,7 +38,10 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
     caducidad_proxima_dias: 30,
   });
 
+  const [configCargada, setConfigCargada] = useState(false);
+
   const [huActual, setHuActual] = useState("");
+  const [blackboxId, setBlackboxId] = useState("");
   const [celdaInput, setCeldaInput] = useState("");
   const [celdas, setCeldas] = useState([]);
   const [fechaInicio, setFechaInicio] = useState(null);
@@ -46,42 +55,62 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
   const [blacklist, setBlacklist] = useState(new Set());
 
   useEffect(() => {
+    let activo = true;
+
     const cargarDatosBackend = async () => {
-      console.log("🔄 Cargando configuración desde Backend...");
+      setConfigCargada(false);
+
+      console.log(`🔄 Cargando configuración de ${modelo}...`);
+
       try {
-        const datos = await obtenerConfiguracion();
-        // Si todo va bien, actualizamos el estado con lo que diga la base de datos
+        const datos = await obtenerConfiguracion(modelo);
+
+        if (!activo) return;
+
         setConfig({
-          alerta_cada: Number(datos.alerta_cada),
-          limite_caja: Number(datos.limite_caja),
-          limite_defectuosa: Number(datos.limite_defectuosa),
+          alerta_cada: Number(datos.alerta_cada ?? 15),
+          limite_caja: Number(datos.limite_caja ?? 180),
+          limite_defectuosa: Number(datos.limite_defectuosa ?? 180),
           limite_caducidad_proxima: Number(
-            datos.limite_caducidad_proxima || 180,
+            datos.limite_caducidad_proxima ?? 180,
           ),
-          caducidad_proxima_dias: Number(datos.caducidad_proxima_dias || 30),
-          len_dmc: Number(datos.len_dmc),
+          caducidad_proxima_dias: Number(datos.caducidad_proxima_dias ?? 30),
+          len_dmc: Number(datos.len_dmc ?? 87),
           level_size: LEVEL_SIZE,
         });
-        console.log("✅ Configuración cargada:", datos);
+
+        console.log(`✅ Configuración ${modelo} cargada:`, datos);
       } catch (error) {
-        console.error(
-          "⚠️ Error cargando config, usando valores por defecto: ",
-          error,
-        );
+        console.error(`⚠️ Error cargando configuración de ${modelo}:`, error);
+      } finally {
+        if (activo) {
+          setConfigCargada(true);
+        }
       }
     };
 
     cargarDatosBackend();
     refrescarListaNegra();
-  }, []);
+
+    return () => {
+      activo = false;
+    };
+  }, [modelo]);
 
   // gestion del localstorage
   const userKey = usuario ? `_${usuario}` : "";
+  const modeloKey = `_${modelo.toLowerCase()}`;
   const tipoKey = `_${tipoCaja.toLowerCase()}`;
 
-  const KEY_CELDAS = `paquete_en_curso${userKey}${tipoKey}`;
-  const KEY_HU = `hu_actual${userKey}${tipoKey}`;
-  const KEY_FECHA = `fecha_inicio${userKey}${tipoKey}`;
+  const KEY_CELDAS = `paquete_en_curso${userKey}${modeloKey}${tipoKey}`;
+  const KEY_HU = `hu_actual${userKey}${modeloKey}${tipoKey}`;
+  const KEY_FECHA = `fecha_inicio${userKey}${modeloKey}${tipoKey}`;
+  const KEY_BLACKBOX = `blackbox_id${userKey}${modeloKey}${tipoKey}`;
+
+  // Guarda qué combinación de operario + modelo + tipo ya se ha restaurado.
+  // Así no escribimos una caja anterior o vacía mientras se están recuperando datos.
+  const storageScope = `${usuario}|${modelo}|${tipoCaja}`;
+  const [storageHydratedScope, setStorageHydratedScope] = useState(null);
 
   const limiteActivo =
     tipoCaja === TIPOS_CAJA.DEFECTUOSA
@@ -91,58 +120,84 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
         : config.limite_caja;
 
   useEffect(() => {
+    // Bloqueamos temporalmente la escritura mientras recuperamos datos.
+    setStorageHydratedScope(null);
+
     if (!usuario) {
-      // Si no hay usuario (estamos en login), limpiamos la memoria del hook
       setCeldas([]);
       setHuActual("");
+      setBlackboxId("");
       setFechaInicio(null);
       return;
     }
 
-    // Intentamos leer del LocalStorage PERSONALIZADO de este usuario
     const savedCeldas = localStorage.getItem(KEY_CELDAS);
-
     const savedHu = localStorage.getItem(KEY_HU);
     const savedFecha = localStorage.getItem(KEY_FECHA);
-
+    const savedBlackboxId = localStorage.getItem(KEY_BLACKBOX);
     if (savedCeldas) {
       try {
-        setCeldas(JSON.parse(savedCeldas));
+        const parsedCeldas = JSON.parse(savedCeldas);
+
+        if (!Array.isArray(parsedCeldas)) {
+          throw new Error("El contenido de celdas no es un array.");
+        }
+
+        setCeldas(parsedCeldas);
       } catch (error) {
         console.error("Datos locales corruptos, reiniciando caja:", error);
-        localStorage.removeItem(KEY_CELDAS); // Autocuración
+        localStorage.removeItem(KEY_CELDAS);
         setCeldas([]);
       }
     } else {
-      setCeldas([]); // Si es un usuario nuevo, empezamos limpio
+      setCeldas([]);
     }
 
-    if (savedHu) setHuActual(savedHu);
-    else setHuActual("");
+    setHuActual(savedHu ?? "");
+    setFechaInicio(savedFecha ?? null);
+    setBlackboxId(savedBlackboxId ?? "");
 
-    if (savedFecha) setFechaInicio(savedFecha);
-    else setFechaInicio(null);
-  }, [usuario, KEY_CELDAS, KEY_HU, KEY_FECHA]);
+    // Solo ahora permitimos que los efectos vuelvan a guardar.
+    setStorageHydratedScope(storageScope);
+  }, [usuario, storageScope, KEY_CELDAS, KEY_HU, KEY_FECHA, KEY_BLACKBOX]);
 
-  // --- PERSISTENCIA (useEffect) --
-  useEffect(() => {
-    if (usuario) {
-      localStorage.setItem(KEY_CELDAS, JSON.stringify(celdas));
-    }
-  }, [celdas, usuario, KEY_CELDAS]); // Añadimos 'usuario' a dependencias
-
-  useEffect(() => {
-    if (usuario) {
-      localStorage.setItem(KEY_HU, huActual);
-    }
-  }, [huActual, usuario, KEY_HU]);
+  // Solo persistimos cuando la caja correspondiente ya se ha restaurado.
+  // Sin esta protección, el primer render guardaba [] y borraba la caja real.
+  const storageReady =
+    Boolean(usuario) && storageHydratedScope === storageScope;
 
   useEffect(() => {
-    if (usuario) {
-      if (fechaInicio) localStorage.setItem(KEY_FECHA, fechaInicio);
-      else localStorage.removeItem(KEY_FECHA);
+    if (!storageReady) return;
+
+    localStorage.setItem(KEY_CELDAS, JSON.stringify(celdas));
+  }, [celdas, storageReady, KEY_CELDAS]);
+
+  useEffect(() => {
+    if (!storageReady) return;
+
+    localStorage.setItem(KEY_HU, huActual);
+  }, [huActual, storageReady, KEY_HU]);
+  useEffect(() => {
+    if (!storageReady) return;
+
+    const blackboxLimpio = String(blackboxId ?? "").trim();
+
+    if (blackboxLimpio) {
+      localStorage.setItem(KEY_BLACKBOX, blackboxLimpio);
+    } else {
+      localStorage.removeItem(KEY_BLACKBOX);
     }
-  }, [fechaInicio, usuario, KEY_FECHA]);
+  }, [blackboxId, storageReady, KEY_BLACKBOX]);
+
+  useEffect(() => {
+    if (!storageReady) return;
+
+    if (fechaInicio) {
+      localStorage.setItem(KEY_FECHA, fechaInicio);
+    } else {
+      localStorage.removeItem(KEY_FECHA);
+    }
+  }, [fechaInicio, storageReady, KEY_FECHA]);
 
   // --- ACCIONES ---
 
@@ -158,6 +213,12 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
 
   const agregarCelda = () => {
     // 1. VALIDACIONES BÁSICAS
+    if (!configCargada) {
+      return {
+        error: `⏳ Cargando configuración de ${modelo}. Espera un momento.`,
+        type: "short_error",
+      };
+    }
     if (!huActual)
       return {
         error: "⚠️ Introduce el HU de la caja primero.",
@@ -289,13 +350,14 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
 
   const resetProceso = () => {
     setHuActual(""); // Limpia el input de caja
+    setBlackboxId(""); // Limpia el input de Blackbox ID
     setCeldaInput(""); // Limpia el input de pieza
     setCeldas([]); // <--- ESTA ES LA CLAVE: vacía el array de la tabla
     setIdGuardado(null); // Quita el modal de éxito
     setFechaCaducidadCajaGuardada(null); // Limpia la fecha de caducidad guardada
   };
 
-  const enviarDatos = async () => {
+  const enviarDatos = async (blackboxId) => {
     if (celdas.length < limiteActivo) {
       const faltantes = limiteActivo - celdas.length;
 
@@ -305,6 +367,18 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
         text: `No se puede cerrar la caja. Faltan ${faltantes} piezas para llegar a ${limiteActivo}.`,
         confirmButtonColor: "#d33",
         confirmButtonText: "Entendido, seguir escaneando",
+      });
+
+      return;
+    }
+    const blackboxIdLimpio = String(blackboxId ?? "").trim();
+
+    if (!blackboxIdLimpio) {
+      Swal.fire({
+        icon: "warning",
+        title: "Falta Blackbox ID",
+        text: "Escanea la Blackbox ID antes de finalizar la caja.",
+        confirmButtonColor: "#d97706",
       });
 
       return;
@@ -319,6 +393,8 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
         fecha_fin: new Date().toISOString(),
         is_defective: is_defective,
         tipo_caja: tipoCaja,
+        modelo: modelo,
+        blackbox_id: blackboxIdLimpio,
         celdas: celdas.map((c) => ({
           dmc_code: c.codigo_celda,
           fecha_caducidad: c.fecha_caducidad,
@@ -340,9 +416,12 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
       setCeldas([]);
       setFechaInicio(null);
       setHuActual("");
+      setBlackboxId("");
+
       localStorage.removeItem(KEY_CELDAS);
       localStorage.removeItem(KEY_HU);
       localStorage.removeItem(KEY_FECHA);
+      localStorage.removeItem(KEY_BLACKBOX);
     } catch (error) {
       if (error.response && error.response.status === 409) {
         // 409 = CONFLICTO (Duplicados o Lista Negra detectados por el backend)
@@ -386,6 +465,8 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
   return {
     huActual,
     setHuActual,
+    blackboxId,
+    setBlackboxId,
     celdaInput,
     setCeldaInput,
     celdas,
@@ -397,6 +478,7 @@ export const usePaquete = (usuario, tipoCaja = TIPOS_CAJA.NORMAL) => {
     borrarCelda,
     borrarDesde,
     enviarDatos,
+    configCargada,
     limite: limiteActivo,
     limite_normal: config.limite_caja,
     limite_defectuosas: config.limite_defectuosa,

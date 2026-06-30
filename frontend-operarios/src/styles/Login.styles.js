@@ -3,8 +3,8 @@ import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
 export const LOGIN_UI = {
   [TIPOS_CAJA.NORMAL]: {
     fondoGlobal: "#f0f4f8",
-    bordeTop: "8px solid #3498db",
-    borderImage: "none",
+    bordeTopAncho: 8,
+    bordeTopColor: "#3498db",
     tituloColor: "#2c3e50",
     textoColor: "#95a5a6",
     botonBg: "#3498db",
@@ -22,9 +22,8 @@ export const LOGIN_UI = {
 
   [TIPOS_CAJA.DEFECTUOSA]: {
     fondoGlobal: "#f5eaea",
-    bordeTop: "12px solid transparent",
-    borderImage:
-      "repeating-linear-gradient(45deg, #c0392b, #c0392b 20px, #f1f2f6 20px, #f1f2f6 40px) 1",
+    bordeTopAncho: 12,
+    bordeTopColor: "#c0392b",
     tituloColor: "#c0392b",
     textoColor: "#7f8c8d",
     botonBg: "#c0392b",
@@ -42,8 +41,8 @@ export const LOGIN_UI = {
 
   [TIPOS_CAJA.CADUCIDAD_PROXIMA]: {
     fondoGlobal: "#fff7ed",
-    bordeTop: "8px solid #f39c12",
-    borderImage: "none",
+    bordeTopAncho: 8,
+    bordeTopColor: "#f39c12",
     tituloColor: "#f39c12",
     textoColor: "#7f8c8d",
     botonBg: "#f39c12",
@@ -99,11 +98,24 @@ export const getLoginStyles = ({ tema, tieneModoEspecial, isHover }) => ({
     backgroundColor: "#ffffff",
     borderRadius: "16px",
     boxShadow: tema.cardShadow,
-    borderTop: tema.bordeTop,
-    borderImage: tema.borderImage,
     textAlign: "center",
     zIndex: 1,
-    border: tieneModoEspecial ? "1px solid #eee" : "none",
+
+    borderTopWidth: tema.bordeTopAncho,
+    borderTopStyle: "solid",
+    borderTopColor: tema.bordeTopColor,
+
+    borderRightWidth: tieneModoEspecial ? 1 : 0,
+    borderRightStyle: tieneModoEspecial ? "solid" : "none",
+    borderRightColor: "#eeeeee",
+
+    borderBottomWidth: tieneModoEspecial ? 1 : 0,
+    borderBottomStyle: tieneModoEspecial ? "solid" : "none",
+    borderBottomColor: "#eeeeee",
+
+    borderLeftWidth: tieneModoEspecial ? 1 : 0,
+    borderLeftStyle: tieneModoEspecial ? "solid" : "none",
+    borderLeftColor: "#eeeeee",
   },
 
   icono: {
@@ -151,10 +163,11 @@ export const getLoginStyles = ({ tema, tieneModoEspecial, isHover }) => ({
     border: "2px solid #e1e8ed",
     outline: "none",
     color: "#2c3e50",
-    backgroundColor: "#fff",
+    backgroundColor: "#ffffff",
     boxSizing: "border-box",
     fontWeight: "700",
   },
+
   input: {
     width: "100%",
     padding: "18px",
@@ -164,7 +177,7 @@ export const getLoginStyles = ({ tema, tieneModoEspecial, isHover }) => ({
     outline: "none",
     textAlign: "center",
     color: "#2c3e50",
-    backgroundColor: "#fff",
+    backgroundColor: "#ffffff",
     boxSizing: "border-box",
     transition: "all 0.3s ease",
     fontWeight: "600",
@@ -176,7 +189,7 @@ export const getLoginStyles = ({ tema, tieneModoEspecial, isHover }) => ({
     padding: "20px",
     fontSize: "1.1rem",
     fontWeight: "900",
-    color: "#fff",
+    color: "#ffffff",
     backgroundColor: tema.botonBg,
     border: "none",
     borderRadius: "12px",
