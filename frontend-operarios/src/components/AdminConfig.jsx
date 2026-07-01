@@ -28,12 +28,14 @@ const CONFIG_INICIAL = {
   limite_caducidad_proxima: "180",
   len_dmc: "87",
   caducidad_proxima_dias: "30",
+  tamano_nivel: "45",
 };
 
 const CLAVES_CAPACIDAD = [
   "limite_caja",
   "limite_defectuosa",
   "limite_caducidad_proxima",
+  "tamano_nivel",
 ];
 
 const CLAVES_LECTURA = ["len_dmc", "caducidad_proxima_dias"];
@@ -72,6 +74,7 @@ const diasDesdeFechaInput = (fechaInput) => {
 };
 
 const convertirConfiguracion = (datos) => ({
+  tamano_nivel: String(datos?.tamano_nivel ?? CONFIG_INICIAL.tamano_nivel),
   alerta_cada: String(datos?.alerta_cada ?? CONFIG_INICIAL.alerta_cada),
   limite_caja: String(datos?.limite_caja ?? CONFIG_INICIAL.limite_caja),
   limite_defectuosa: String(
@@ -453,6 +456,14 @@ export const AdminConfig = () => {
                 valor={config.limite_caducidad_proxima}
                 onChange={handleChange}
                 sufijo="piezas"
+              />
+              <CampoNumerico
+                etiqueta="Piezas por nivel"
+                ayuda="Número de celdas que se colocan antes de introducir el cartón separador."
+                nombre="tamano_nivel"
+                valor={config.tamano_nivel}
+                onChange={handleChange}
+                sufijo="celdas/nivel"
               />
             </div>
           </SeccionConfiguracion>

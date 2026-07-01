@@ -38,7 +38,10 @@ def obtener_configuracion(
     def get_valor_entero(clave: str, defecto: int) -> int:
         try:
             valor = int(valores.get(clave, defecto))
-            return valor if valor > -2 else defecto
+            if valor > -2 and clave == "alerta_cada" or valor > 0:
+                return valor
+            else:
+                defecto
         except (TypeError, ValueError):
             return defecto
 
@@ -50,6 +53,7 @@ def obtener_configuracion(
             "limite_caducidad_proxima",
             180,
         ),
+        "tamano_nivel": get_valor_entero("tamano_nivel", 45),
         "len_dmc": get_valor_entero("len_dmc", 87),
         "caducidad_proxima_dias": get_valor_entero(
             "caducidad_proxima_dias",
@@ -70,6 +74,17 @@ def actualizar_configuracion(
 ):
     # Buscamos la clave (ej: "alerta_cada")
     modelo = obtener_modelo_valido(modelo)
+
+    if datos.clave == "tamano_nivel":
+        try:
+            if int(datos.valor) <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=400,
+                detail="El tamaño de nivel debe ser un número entero mayor que 0.",
+            )
+
     config = (
         db.query(models.Configuracion)
         .filter(

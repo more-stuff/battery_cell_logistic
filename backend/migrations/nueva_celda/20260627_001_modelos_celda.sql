@@ -21,6 +21,15 @@ BEGIN;
 ALTER TABLE cajas_reempaque
     ADD COLUMN IF NOT EXISTS modelo VARCHAR(30);
 
+
+
+
+INSERT INTO configuraciones (modelo, clave, valor)
+VALUES
+    ('MODELO1', 'tamano_nivel', '45'),
+    ('MODELO2', 'tamano_nivel', '45')
+ON CONFLICT (modelo, clave) DO NOTHING;
+
 -- Históricos y valores inválidos previos se consideran MODELO1.
 UPDATE cajas_reempaque
 SET modelo = 'MODELO1'

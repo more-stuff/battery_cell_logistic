@@ -20,6 +20,14 @@ import { MODELO_POR_DEFECTO } from "../services/modelos";
 
 import Swal from "sweetalert2";
 
+const TAMANO_NIVEL_POR_DEFECTO = 45;
+
+const obtenerEnteroPositivo = (valor, defecto) => {
+  const numero = Number(valor);
+
+  return Number.isInteger(numero) && numero > 0 ? numero : defecto;
+};
+
 export const usePaquete = (
   usuario,
   tipoCaja = TIPOS_CAJA.NORMAL,
@@ -36,6 +44,7 @@ export const usePaquete = (
     len_dmc: 87,
     level_size: LEVEL_SIZE,
     caducidad_proxima_dias: 30,
+    tamano_nivel: TAMANO_NIVEL_POR_DEFECTO,
   });
 
   const [configCargada, setConfigCargada] = useState(false);
@@ -77,6 +86,10 @@ export const usePaquete = (
           caducidad_proxima_dias: Number(datos.caducidad_proxima_dias ?? 30),
           len_dmc: Number(datos.len_dmc ?? 87),
           level_size: LEVEL_SIZE,
+          tamano_nivel: obtenerEnteroPositivo(
+            datos.tamano_nivel,
+            TAMANO_NIVEL_POR_DEFECTO,
+          ),
         });
 
         console.log(`✅ Configuración ${modelo} cargada:`, datos);
@@ -118,6 +131,11 @@ export const usePaquete = (
       : tipoCaja === TIPOS_CAJA.CADUCIDAD_PROXIMA
         ? config.limite_caducidad_proxima
         : config.limite_caja;
+
+  const tamanoNivelActivo = obtenerEnteroPositivo(
+    config.tamano_nivel,
+    TAMANO_NIVEL_POR_DEFECTO,
+  );
 
   useEffect(() => {
     // Bloqueamos temporalmente la escritura mientras recuperamos datos.
@@ -322,8 +340,9 @@ export const usePaquete = (
     }
 
     const nivelCompletado =
-      total_celdas % config.level_size === 0 && total_celdas < limiteActivo;
-    const numeroNivel = Math.floor(total_celdas / config.level_size);
+      total_celdas % tamanoNivelActivo === 0 && total_celdas < limiteActivo;
+
+    const numeroNivel = Math.floor(total_celdas / tamanoNivelActivo);
 
     return {
       success: true,
@@ -483,6 +502,7 @@ export const usePaquete = (
     limite_normal: config.limite_caja,
     limite_defectuosas: config.limite_defectuosa,
     limite_caducidad_proxima: config.limite_caducidad_proxima,
-    level_size: config.level_size,
+
+    level_size: tamanoNivelActivo,
   };
 };

@@ -120,6 +120,7 @@ class ConfigResponse(BaseModel):
     limite_caducidad_proxima: int
     len_dmc: int
     caducidad_proxima_dias: int
+    tamano_nivel: int
 
 
 class AdminCreate(BaseModel):
