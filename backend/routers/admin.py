@@ -266,12 +266,20 @@ def sustituir_celda(
                 detail=f"Tipo de caja no válido: {tipo_caja}",
             )
 
-        dias_caducidad_proxima = get_config_int(
+        caducidad_proxima_dias = get_config_int(
             db,
             models,
             modelo,
             "caducidad_proxima_dias",
             30,
+        )
+
+        caducidad_proxima_defectuosa_dias = get_config_int(
+            db,
+            models,
+            modelo,
+            "caducidad_proxima_defectuosa_dias",
+            caducidad_proxima_dias,
         )
 
         # --- PASO 2: Buscar la celda antigua dentro de esa caja ---
@@ -327,8 +335,10 @@ def sustituir_celda(
                 dmc=datos.nueva_celda.dmc_code,
                 fecha_caducidad=datos.nueva_celda.fecha_caducidad,
                 dmc_es_defectuoso=dmc_defectuoso is not None,
-                dias_caducidad_proxima=dias_caducidad_proxima,
+                caducidad_proxima_dias=caducidad_proxima_dias,
+                caducidad_proxima_defectuosa_dias=caducidad_proxima_defectuosa_dias,
             )
+
         except ValueError as e:
             raise HTTPException(
                 status_code=409,

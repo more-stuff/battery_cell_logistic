@@ -93,8 +93,11 @@ try:
 
                         if contador_estabilidad >= LECTURAS_ESTABLES_REQUERIDAS:
                             print(f"[ESTABLE] Enviando: {voltaje_actual} V")
+                            # print(f"[ESTABLE] Enviando: {voltaje_actual*1000} mV")
+                            # opcion milivoltios
+                            # pyautogui.write(f"V:{str(voltaje_actual*1000)}")
 
-                            pyautogui.write(str(voltaje_actual))
+                            pyautogui.write(f"V:{str(voltaje_actual)}")
                             pyautogui.press("enter")
 
                             ya_enviado = True

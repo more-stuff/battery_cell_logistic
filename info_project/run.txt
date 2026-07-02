@@ -19,7 +19,7 @@ migracion db cajas defectuosas
 
 
 docker compose exec -T db psql -U postgres -d trazabilidad < backend/migrations/20260531_001_add_tipo_caja.sql
-docker compose exec -T db psql -U postgres -d trazabilidad < backend/migrations/20260531_001_rollback_tipo_caja.sql
+docker compose exec -T db psql -U postgres -d trazabilidad < backend/migrations/nueva_celda/20260531_001_rollback_tipo_caja.sql
 
 
 docker exec -it battery_cell_logistic-db-1 psql -U postgres -d trazabilidad
@@ -29,7 +29,8 @@ ON celdas (fecha_caducidad);
 
 
 
-SELECT id, id_temporal, is_defective, tipo_caja
-FROM cajas_reempaque
-WHERE is_defective IS TRUE
-  AND tipo_caja <> 'DEFECTUOSA';
+
+-> montar exe para multimetro
+
+python -m PyInstaller --onefile program_multimetro.py
+

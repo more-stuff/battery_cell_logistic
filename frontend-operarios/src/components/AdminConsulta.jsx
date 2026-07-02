@@ -38,6 +38,11 @@ const COLUMNAS_DISPONIBLES = [
   },
   { id: "operario", label: "👷 Operario (Interno)", group: "repacking_area" },
   { id: "dmc", label: "DMC (Celda)", group: "repacking_area" },
+  {
+    id: "voltaje_medido",
+    label: "Voltaje medido",
+    group: "repacking_area",
+  },
   { id: "id_temporal", label: "ID Temporal", group: "repacking_area" },
   { id: "modelo", label: "Modelo", group: "repacking_area" },
   { id: "blackbox_id", label: "Blackbox ID", group: "repacking_area" },

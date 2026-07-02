@@ -76,6 +76,9 @@ export const AdminTabla = ({
     if (colId.includes("posicion")) {
       return valor + 1;
     }
+    if (colId === "voltaje_medido") {
+      return valor ?? "-";
+    }
 
     return valor ?? "";
   };
