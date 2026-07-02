@@ -71,12 +71,20 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
                 ),
             )
 
-        dias_caducidad_proxima = get_config_int(
+        caducidad_proxima_dias = get_config_int(
             db,
             models,
             modelo,
             "caducidad_proxima_dias",
             30,
+        )
+
+        caducidad_proxima_defectuosa_dias = get_config_int(
+            db,
+            models,
+            modelo,
+            "caducidad_proxima_defectuosa_dias",
+            caducidad_proxima_dias,
         )
 
         dmcs_entrantes = [c.dmc_code for c in datos.celdas]
@@ -147,7 +155,8 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
                     dmc=celda.dmc_code,
                     fecha_caducidad=celda.fecha_caducidad,
                     dmc_es_defectuoso=celda.dmc_code in dmcs_defectuosos,
-                    dias_caducidad_proxima=dias_caducidad_proxima,
+                    caducidad_proxima_dias=caducidad_proxima_dias,
+                    caducidad_proxima_defectuosa_dias=caducidad_proxima_defectuosa_dias,
                 )
             except ValueError as e:
                 errores_tipo_caja.append(str(e))

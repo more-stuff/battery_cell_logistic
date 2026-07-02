@@ -10,6 +10,7 @@ class CeldaInput(BaseModel):
     fecha_caducidad: date  # Extraída o seleccionada
     hu_origen: str  # El HU de la caja de donde salió (Sticky input)
     estado_calidad: Optional[str] = "OK"  # si ha tenido revision manual o no
+    voltaje_medido: Optional[float] = None
 
 
 # El paquete completo de 180 celdas
@@ -75,6 +76,7 @@ class CeldaDetalle(BaseModel):
     hu_origen: Optional[str] = None
     estado_calidad: str
     posicion_en_caja: Optional[int] = None
+    voltaje_medido: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -121,6 +123,7 @@ class ConfigResponse(BaseModel):
     len_dmc: int
     caducidad_proxima_dias: int
     tamano_nivel: int
+    caducidad_proxima_defectuosa_dias: int
 
 
 class AdminCreate(BaseModel):

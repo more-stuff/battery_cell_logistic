@@ -28,17 +28,21 @@ const CONFIG_INICIAL = {
   limite_caducidad_proxima: "180",
   len_dmc: "87",
   caducidad_proxima_dias: "30",
-  tamano_nivel: "45",
+  caducidad_proxima_defectuosa_dias: "30",
 };
 
 const CLAVES_CAPACIDAD = [
   "limite_caja",
   "limite_defectuosa",
   "limite_caducidad_proxima",
-  "tamano_nivel",
 ];
 
-const CLAVES_LECTURA = ["len_dmc", "caducidad_proxima_dias"];
+const CLAVES_LECTURA = [
+  "len_dmc",
+  "caducidad_proxima_dias",
+  "caducidad_proxima_defectuosa_dias",
+];
+
 const CLAVES_CALIDAD = ["alerta_cada"];
 
 const MILISEGUNDOS_POR_DIA = 24 * 60 * 60 * 1000;
@@ -86,6 +90,11 @@ const convertirConfiguracion = (datos) => ({
   len_dmc: String(datos?.len_dmc ?? CONFIG_INICIAL.len_dmc),
   caducidad_proxima_dias: String(
     datos?.caducidad_proxima_dias ?? CONFIG_INICIAL.caducidad_proxima_dias,
+  ),
+  caducidad_proxima_defectuosa_dias: String(
+    datos?.caducidad_proxima_defectuosa_dias ??
+      datos?.caducidad_proxima_dias ??
+      CONFIG_INICIAL.caducidad_proxima_defectuosa_dias,
   ),
 });
 
@@ -161,6 +170,11 @@ export const AdminConfig = () => {
     fechaInputDesdeDias(CONFIG_INICIAL.caducidad_proxima_dias),
   );
 
+  const [fechaCaducidadProximaDefectuosa, setFechaCaducidadProximaDefectuosa] =
+    useState(() =>
+      fechaInputDesdeDias(CONFIG_INICIAL.caducidad_proxima_defectuosa_dias),
+    );
+
   const inputArchivoRef = useRef(null);
 
   const cargarDatos = useCallback(async (modeloSeleccionado) => {
@@ -173,6 +187,12 @@ export const AdminConfig = () => {
       setConfig(configuracionNormalizada);
       setFechaCaducidadProxima(
         fechaInputDesdeDias(configuracionNormalizada.caducidad_proxima_dias),
+      );
+
+      setFechaCaducidadProximaDefectuosa(
+        fechaInputDesdeDias(
+          configuracionNormalizada.caducidad_proxima_defectuosa_dias,
+        ),
       );
 
       if (Number(configuracionNormalizada.alerta_cada) !== -1) {
@@ -241,6 +261,28 @@ export const AdminConfig = () => {
     setConfig((actual) => ({
       ...actual,
       caducidad_proxima_dias: String(dias),
+    }));
+  };
+  const handleCambioFechaCaducidadProximaDefectuosa = (event) => {
+    const nuevaFecha = event.target.value;
+
+    const dias = diasDesdeFechaInput(nuevaFecha);
+
+    if (!nuevaFecha || dias === null || dias < 1) {
+      Swal.fire({
+        icon: "warning",
+        title: "Fecha no válida",
+        text: "La caducidad próxima para defectuosas debe ser como mínimo mañana.",
+      });
+
+      return;
+    }
+
+    setFechaCaducidadProximaDefectuosa(nuevaFecha);
+
+    setConfig((actual) => ({
+      ...actual,
+      caducidad_proxima_defectuosa_dias: String(dias),
     }));
   };
 
@@ -487,7 +529,7 @@ export const AdminConfig = () => {
               </button>
             }
           >
-            <div style={estilos.gridDos}>
+            <div style={estilos.gridTres}>
               <CampoNumerico
                 etiqueta="Longitud del DMC"
                 ayuda="Número exacto de caracteres que debe tener el DMC."
@@ -496,6 +538,7 @@ export const AdminConfig = () => {
                 onChange={handleChange}
                 sufijo="caracteres"
               />
+
               <label style={estilos.campo}>
                 <span style={estilos.campoEtiqueta}>
                   Caducidad próxima hasta
@@ -513,9 +556,30 @@ export const AdminConfig = () => {
                 />
 
                 <span style={estilos.ayuda}>
-                  Selecciona hasta qué fecha una celda debe considerarse de
-                  caducidad próxima. Al guardar se convierte automáticamente en
-                  el intervalo interno del sistema.
+                  Margen general usado por cajas normales y de caducidad
+                  próxima.
+                </span>
+              </label>
+
+              <label style={estilos.campo}>
+                <span style={estilos.campoEtiqueta}>
+                  Caducidad próxima en defectuosas hasta
+                </span>
+
+                <input
+                  type="date"
+                  value={fechaCaducidadProximaDefectuosa}
+                  min={fechaMinimaCaducidad}
+                  onChange={handleCambioFechaCaducidadProximaDefectuosa}
+                  style={{
+                    ...estilos.inputNumero,
+                    borderRadius: 8,
+                  }}
+                />
+
+                <span style={estilos.ayuda}>
+                  Margen exclusivo de cajas defectuosas. Una celda defectuosa
+                  dentro de este plazo no podrá entrar en una caja DEFECTUOSA.
                 </span>
               </label>
             </div>

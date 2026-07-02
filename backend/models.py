@@ -8,6 +8,7 @@ from sqlalchemy import (
     Date,
     func,
     Boolean,
+    Float,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -112,6 +113,7 @@ class Celda(Base):
     # Guardará "OK" o "REVISION"
     estado_calidad = Column(String(50), default="OK")
     posicion_en_caja = Column(Integer, nullable=True)
+    voltaje_medido = Column(Float, nullable=True)
 
 
 class Configuracion(Base):

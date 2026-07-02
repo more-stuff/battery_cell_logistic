@@ -11,15 +11,20 @@ const normalizarFechaLocal = (date) => {
 };
 
 export const esCaducidadProxima = (fechaCaducidad, diasCaducidadProxima) => {
-  if (!fechaCaducidad) return false;
+  const fecha = normalizarFechaLocal(fechaCaducidad);
+
+  const dias = Number(diasCaducidadProxima);
+
+  if (!fecha || !Number.isFinite(dias) || dias < 0) {
+    return false;
+  }
 
   const hoy = normalizarFechaLocal(new Date());
-  const fecha = normalizarFechaLocal(new Date(fechaCaducidad));
 
-  const limite = normalizarFechaLocal(new Date());
-  limite.setDate(limite.getDate() + Number(diasCaducidadProxima || 30));
+  const fechaLimite = normalizarFechaLocal(new Date());
+  fechaLimite.setDate(fechaLimite.getDate() + dias);
 
-  return fecha >= hoy && fecha <= limite;
+  return fecha >= hoy && fecha <= fechaLimite;
 };
 
 export const estaCaducada = (fechaCaducidad) => {
@@ -37,12 +42,17 @@ export const validarCeldaPorTipoCaja = ({
   fechaCaducidad,
   blacklist,
   diasCaducidadProxima,
+  diasCaducidadProximaDefectuosa,
 }) => {
   const estaEnBlacklist = blacklist?.has?.(dmc) ?? false;
-  const caducidadProxima = esCaducidadProxima(
-    fechaCaducidad,
-    diasCaducidadProxima,
-  );
+
+  const diasAplicables =
+    tipoCaja === TIPOS_CAJA.DEFECTUOSA
+      ? Number(diasCaducidadProximaDefectuosa ?? diasCaducidadProxima ?? 30)
+      : Number(diasCaducidadProxima ?? 30);
+
+  const caducidadProxima = esCaducidadProxima(fechaCaducidad, diasAplicables);
+
   const caducada = estaCaducada(fechaCaducidad);
 
   if (tipoCaja === TIPOS_CAJA.NORMAL) {
@@ -100,7 +110,7 @@ export const validarCeldaPorTipoCaja = ({
         ok: false,
         type: "date_error",
         error:
-          "⏳ CADUCIDAD PRÓXIMA: Esta celda debe ir a una caja de caducidad próxima, no a una caja defectuosa.",
+          "error: `⏳ CADUCIDAD PRÓXIMA EN DEFECTUOSAS: Esta celda está dentro del margen especial de ${diasAplicables} días configurado para defectuosas y no puede entrar en esta caja.`,",
       };
     }
 

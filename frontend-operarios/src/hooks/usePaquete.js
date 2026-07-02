@@ -1,7 +1,7 @@
 // ─── TAMAÑO DE NIVEL ──────────────────────────────────────────────────────────
 // Número de celdas por nivel (separador físico dentro de la caja).
 // Cambia este valor si el proveedor cambia el formato de embalaje.
-const LEVEL_SIZE = 45;
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect } from "react";
@@ -42,8 +42,8 @@ export const usePaquete = (
     limite_defectuosa: 180,
     limite_caducidad_proxima: 180,
     len_dmc: 87,
-    level_size: LEVEL_SIZE,
     caducidad_proxima_dias: 30,
+    caducidad_proxima_defectuosa_dias: 30,
     tamano_nivel: TAMANO_NIVEL_POR_DEFECTO,
   });
 
@@ -84,8 +84,15 @@ export const usePaquete = (
             datos.limite_caducidad_proxima ?? 180,
           ),
           caducidad_proxima_dias: Number(datos.caducidad_proxima_dias ?? 30),
+
+          caducidad_proxima_defectuosa_dias: Number(
+            datos.caducidad_proxima_defectuosa_dias ??
+              datos.caducidad_proxima_dias ??
+              30,
+          ),
+
           len_dmc: Number(datos.len_dmc ?? 87),
-          level_size: LEVEL_SIZE,
+
           tamano_nivel: obtenerEnteroPositivo(
             datos.tamano_nivel,
             TAMANO_NIVEL_POR_DEFECTO,
@@ -298,6 +305,7 @@ export const usePaquete = (
       fechaCaducidad: fechaFormateada,
       blacklist,
       diasCaducidadProxima: config.caducidad_proxima_dias,
+      diasCaducidadProximaDefectuosa: config.caducidad_proxima_defectuosa_dias,
     });
 
     if (!validacionTipoCaja.ok) {

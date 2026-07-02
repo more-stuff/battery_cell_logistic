@@ -35,6 +35,8 @@ def obtener_configuracion(
         configuracion.clave: configuracion.valor for configuracion in configuraciones
     }
 
+    print(valores)
+
     def get_valor_entero(clave: str, defecto: int) -> int:
         try:
             valor = int(valores.get(clave, defecto))
@@ -57,6 +59,14 @@ def obtener_configuracion(
         "len_dmc": get_valor_entero("len_dmc", 87),
         "caducidad_proxima_dias": get_valor_entero(
             "caducidad_proxima_dias",
+            30,
+        ),
+        "caducidad_proxima_dias": get_valor_entero(
+            "caducidad_proxima_dias",
+            30,
+        ),
+        "caducidad_proxima_defectuosa_dias": get_valor_entero(
+            "caducidad_proxima_defectuosa_dias",
             30,
         ),
     }

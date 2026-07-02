@@ -42,7 +42,15 @@ def es_caducidad_proxima(
     fecha_caducidad: Optional[date],
     dias_caducidad_proxima: int,
 ) -> bool:
+    """
+    Devuelve True cuando la fecha está entre hoy y el número de días configurado.
+
+    Esta función no modifica la fecha real de la celda.
+    """
     if fecha_caducidad is None:
+        return False
+
+    if dias_caducidad_proxima < 0:
         return False
 
     hoy = date.today()
@@ -57,23 +65,38 @@ def validar_celda_para_tipo_caja(
     dmc: str,
     fecha_caducidad: date,
     dmc_es_defectuoso: bool,
-    dias_caducidad_proxima: int,
+    caducidad_proxima_dias: int,
+    caducidad_proxima_defectuosa_dias: int,
 ) -> None:
     """
-    Valida si una celda puede entrar en una caja de tipo:
-    NORMAL / DEFECTUOSA / CADUCIDAD_PROXIMA.
+    Reglas:
+
+    - NORMAL:
+      usa caducidad_proxima_dias.
+
+    - CADUCIDAD_PROXIMA:
+      usa caducidad_proxima_dias.
+
+    - DEFECTUOSA:
+      usa exclusivamente caducidad_proxima_defectuosa_dias.
 
     Si la celda es válida, no devuelve nada.
-    Si no es válida, lanza ValueError.
+    Si no lo es, lanza ValueError.
     """
 
     if tipo_caja not in TIPOS_CAJA_VALIDOS:
         raise ValueError(f"Tipo de caja no válido: {tipo_caja}")
 
     caducada = esta_caducada(fecha_caducidad)
-    caducidad_proxima = es_caducidad_proxima(
+
+    caducidad_proxima_normal = es_caducidad_proxima(
         fecha_caducidad,
-        dias_caducidad_proxima,
+        caducidad_proxima_dias,
+    )
+
+    caducidad_proxima_defectuosa = es_caducidad_proxima(
+        fecha_caducidad,
+        caducidad_proxima_defectuosa_dias,
     )
 
     if tipo_caja == TIPO_NORMAL:
@@ -87,7 +110,7 @@ def validar_celda_para_tipo_caja(
                 f"El DMC {dmc} está caducado y no puede entrar en una caja NORMAL."
             )
 
-        if caducidad_proxima:
+        if caducidad_proxima_normal:
             raise ValueError(
                 f"El DMC {dmc} tiene caducidad próxima y debe entrar en una caja CADUCIDAD_PROXIMA."
             )
@@ -105,9 +128,12 @@ def validar_celda_para_tipo_caja(
                 f"El DMC {dmc} está caducado y no puede entrar en una caja DEFECTUOSA."
             )
 
-        if caducidad_proxima:
+        if caducidad_proxima_defectuosa:
             raise ValueError(
-                f"El DMC {dmc} tiene caducidad próxima y debe entrar en una caja CADUCIDAD_PROXIMA."
+                f"El DMC {dmc} entra dentro del margen especial de "
+                f"caducidad próxima para defectuosas "
+                f"({caducidad_proxima_defectuosa_dias} días) y no puede "
+                f"entrar en una caja DEFECTUOSA."
             )
 
         return
@@ -123,7 +149,7 @@ def validar_celda_para_tipo_caja(
                 f"El DMC {dmc} está caducado y no puede entrar en una caja CADUCIDAD_PROXIMA."
             )
 
-        if not caducidad_proxima:
+        if not caducidad_proxima_normal:
             raise ValueError(
                 f"El DMC {dmc} no está dentro del umbral de caducidad próxima."
             )
