@@ -24,28 +24,14 @@ ALTER TABLE cajas_reempaque
 
 
 
-INSERT INTO configuraciones (modelo, clave, valor)
-VALUES
-    ('MODELO1', 'tamano_nivel', '45'),
-    ('MODELO2', 'tamano_nivel', '45')
-ON CONFLICT (modelo, clave) DO NOTHING;
-
-
-INSERT INTO configuraciones (clave, valor, modelo)
-SELECT
-    'caducidad_proxima_defectuosa_dias',
-    valor,
-    modelo
-FROM configuraciones
-WHERE clave = 'caducidad_proxima_dias'
-ON CONFLICT (clave, modelo) DO NOTHING;
-
-
 ALTER TABLE celdas
 ADD COLUMN IF NOT EXISTS voltaje_medido DOUBLE PRECISION;
 
 COMMENT ON COLUMN celdas.voltaje_medido IS
 'Voltaje medido de la celda, expresado en voltios. NULL significa que no se realizó medición.';
+
+ALTER TABLE cajas_reempaque
+    ADD COLUMN IF NOT EXISTS blackbox_id VARCHAR(100);
 
 
 -- Históricos y valores inválidos previos se consideran MODELO1.
@@ -162,5 +148,23 @@ WHERE modelo = 'MODELO1'
       'caducidad_proxima_dias'
   )
 ON CONFLICT (modelo, clave) DO NOTHING;
+
+
+INSERT INTO configuraciones (modelo, clave, valor)
+VALUES
+    ('MODELO1', 'tamano_nivel', '45'),
+    ('MODELO2', 'tamano_nivel', '45')
+ON CONFLICT (modelo, clave) DO NOTHING;
+
+
+INSERT INTO configuraciones (clave, valor, modelo)
+SELECT
+    'caducidad_proxima_defectuosa_dias',
+    valor,
+    modelo
+FROM configuraciones
+WHERE clave = 'caducidad_proxima_dias'
+ON CONFLICT (clave, modelo) DO NOTHING;
+
 
 COMMIT;

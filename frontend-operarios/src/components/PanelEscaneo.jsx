@@ -64,7 +64,7 @@ export default function PanelEscaneo({
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const res = onEscanear();
+    const res = onEscanear() ?? {};
     const sonido = res.type || "short_error";
 
     if (res?.error) {
@@ -310,7 +310,7 @@ export default function PanelEscaneo({
         </div>
 
         <div className="form-group">
-          <label>PIEZA / CELDA</label>
+          <label>PIEZA / CELDA / VOLTAJE</label>
           <form onSubmit={handleSubmit}>
             <input
               ref={inputRef}
@@ -318,7 +318,7 @@ export default function PanelEscaneo({
               value={celda}
               onChange={(e) => setCelda(e.target.value)}
               disabled={bloqueado}
-              placeholder="Escanear Pieza..."
+              placeholder="DMC o V:valor (ej. V:3672)"
               autoFocus
             />
           </form>

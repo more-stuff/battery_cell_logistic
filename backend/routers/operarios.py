@@ -220,6 +220,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
                 fecha_caducidad=celda_in.fecha_caducidad,
                 estado_calidad=celda_in.estado_calidad,
                 posicion_en_caja=posicion,
+                voltaje_medido=celda_in.voltaje_medido,
             )
             db.add(nueva_celda)
 

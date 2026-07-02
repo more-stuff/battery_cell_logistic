@@ -219,6 +219,7 @@ def get_celdas_caja(
             hu_origen=c.hu_origen_id,
             estado_calidad=c.estado_calidad or "OK",
             posicion_en_caja=c.posicion_en_caja,
+            voltaje_medido=c.voltaje_medido,
         )
         for c in celdas
     ]
@@ -359,6 +360,7 @@ def sustituir_celda(
         celda_antigua.fecha_caducidad = datos.nueva_celda.fecha_caducidad
         celda_antigua.hu_origen_id = nuevo_hu_origen
         celda_antigua.estado_calidad = datos.nueva_celda.estado_calidad or "OK"
+        celda_antigua.voltaje_medido = datos.nueva_celda.voltaje_medido
 
         # --- PASO 6: Recalcular fecha_caducidad_caja con SELECT MIN() en SQL ---
         # flush() para que el MIN() vea ya el nuevo valor de fecha_caducidad.

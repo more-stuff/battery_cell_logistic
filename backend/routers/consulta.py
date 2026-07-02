@@ -128,6 +128,7 @@ def construir_fila(celda, caja, palet):
         "fecha_fin_reempaque": caja.fecha_fin_reempaque if caja else None,
         "operario": getattr(caja, "usuario_id", "") if caja else "",
         "dmc": celda.dmc_code,
+        "voltaje_medido": celda.voltaje_medido,
         "estado_calidad": getattr(celda, "estado_calidad", "OK"),
         "id_temporal": caja.id_temporal if caja else "",
         "posicion_caja": celda.posicion_en_caja if celda else "",

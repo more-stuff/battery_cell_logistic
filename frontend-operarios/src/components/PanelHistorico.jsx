@@ -182,6 +182,15 @@ export default function PanelHistorico({
                   textAlign: "center",
                 }}
               >
+                VOLTAJE
+              </th>
+              <th
+                style={{
+                  padding: "10px",
+                  borderBottom: "2px solid #ddd",
+                  textAlign: "center",
+                }}
+              >
                 ESTADO
               </th>
               <th
@@ -199,7 +208,7 @@ export default function PanelHistorico({
             {celdas.length === 0 ? (
               <tr>
                 <td
-                  colSpan="5"
+                  colSpan="6"
                   style={{
                     padding: "30px",
                     textAlign: "center",
@@ -249,6 +258,21 @@ export default function PanelHistorico({
                       }}
                     >
                       {celda.codigo_celda}
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px",
+                        textAlign: "center",
+                        fontFamily: "monospace",
+                        fontWeight: "bold",
+                        color:
+                          celda.voltaje_medido === null ||
+                          celda.voltaje_medido === undefined
+                            ? "#999"
+                            : "#2c3e50",
+                      }}
+                    >
+                      {celda.voltaje_medido ?? "-"}
                     </td>
 
                     <td style={{ textAlign: "center" }}>

@@ -1,10 +1,4 @@
-// ─── TAMAÑO DE NIVEL ──────────────────────────────────────────────────────────
-// Número de celdas por nivel (separador físico dentro de la caja).
-// Cambia este valor si el proveedor cambia el formato de embalaje.
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   enviarPaquete,
   obtenerConfiguracion,
@@ -15,6 +9,14 @@ import {
   TIPOS_CAJA,
   validarCeldaPorTipoCaja,
 } from "../services/validarCeldaPorTipoCaja";
+
+import {
+  TIPO_ENTRADA,
+  calcularControlCalidad,
+  calcularNivelCompletado,
+  clasificarEntradaEscaneo,
+  extraerFechaCaducidadDmc,
+} from "../services/entradaEscaneo";
 
 import { MODELO_POR_DEFECTO } from "../services/modelos";
 
@@ -34,7 +36,6 @@ export const usePaquete = (
   modelo = MODELO_POR_DEFECTO,
 ) => {
   const is_defective = tipoCaja === TIPOS_CAJA.DEFECTUOSA;
-  const is_caducidad_proxima = tipoCaja === TIPOS_CAJA.CADUCIDAD_PROXIMA;
 
   const [config, setConfig] = useState({
     alerta_cada: 15,
@@ -56,20 +57,26 @@ export const usePaquete = (
   const [fechaInicio, setFechaInicio] = useState(null);
   const [enviando, setEnviando] = useState(false);
 
-  // guardar info que nos devuelve el server para las etiquetas
   const [idGuardado, setIdGuardado] = useState(null);
   const [fechaCaducidadCajaGuardada, setFechaCaducidadCajaGuardada] =
     useState(null);
 
   const [blacklist, setBlacklist] = useState(new Set());
 
+  const refrescarListaNegra = useCallback(async () => {
+    try {
+      const lista = await obtenerDmcDefectuosos();
+      setBlacklist(new Set(lista));
+    } catch (error) {
+      console.error("Error cargando lista negra", error);
+    }
+  }, []);
+
   useEffect(() => {
     let activo = true;
 
     const cargarDatosBackend = async () => {
       setConfigCargada(false);
-
-      console.log(`🔄 Cargando configuración de ${modelo}...`);
 
       try {
         const datos = await obtenerConfiguracion(modelo);
@@ -84,24 +91,19 @@ export const usePaquete = (
             datos.limite_caducidad_proxima ?? 180,
           ),
           caducidad_proxima_dias: Number(datos.caducidad_proxima_dias ?? 30),
-
           caducidad_proxima_defectuosa_dias: Number(
             datos.caducidad_proxima_defectuosa_dias ??
               datos.caducidad_proxima_dias ??
               30,
           ),
-
           len_dmc: Number(datos.len_dmc ?? 87),
-
           tamano_nivel: obtenerEnteroPositivo(
             datos.tamano_nivel,
             TAMANO_NIVEL_POR_DEFECTO,
           ),
         });
-
-        console.log(`✅ Configuración ${modelo} cargada:`, datos);
       } catch (error) {
-        console.error(`⚠️ Error cargando configuración de ${modelo}:`, error);
+        console.error(`Error cargando configuración de ${modelo}:`, error);
       } finally {
         if (activo) {
           setConfigCargada(true);
@@ -115,9 +117,10 @@ export const usePaquete = (
     return () => {
       activo = false;
     };
-  }, [modelo]);
+  }, [modelo, refrescarListaNegra]);
 
-  // gestion del localstorage
+  // ─── LocalStorage ───────────────────────────────────────────────────────
+
   const userKey = usuario ? `_${usuario}` : "";
   const modeloKey = `_${modelo.toLowerCase()}`;
   const tipoKey = `_${tipoCaja.toLowerCase()}`;
@@ -127,8 +130,6 @@ export const usePaquete = (
   const KEY_FECHA = `fecha_inicio${userKey}${modeloKey}${tipoKey}`;
   const KEY_BLACKBOX = `blackbox_id${userKey}${modeloKey}${tipoKey}`;
 
-  // Guarda qué combinación de operario + modelo + tipo ya se ha restaurado.
-  // Así no escribimos una caja anterior o vacía mientras se están recuperando datos.
   const storageScope = `${usuario}|${modelo}|${tipoCaja}`;
   const [storageHydratedScope, setStorageHydratedScope] = useState(null);
 
@@ -145,7 +146,6 @@ export const usePaquete = (
   );
 
   useEffect(() => {
-    // Bloqueamos temporalmente la escritura mientras recuperamos datos.
     setStorageHydratedScope(null);
 
     if (!usuario) {
@@ -160,6 +160,7 @@ export const usePaquete = (
     const savedHu = localStorage.getItem(KEY_HU);
     const savedFecha = localStorage.getItem(KEY_FECHA);
     const savedBlackboxId = localStorage.getItem(KEY_BLACKBOX);
+
     if (savedCeldas) {
       try {
         const parsedCeldas = JSON.parse(savedCeldas);
@@ -181,13 +182,9 @@ export const usePaquete = (
     setHuActual(savedHu ?? "");
     setFechaInicio(savedFecha ?? null);
     setBlackboxId(savedBlackboxId ?? "");
-
-    // Solo ahora permitimos que los efectos vuelvan a guardar.
     setStorageHydratedScope(storageScope);
   }, [usuario, storageScope, KEY_CELDAS, KEY_HU, KEY_FECHA, KEY_BLACKBOX]);
 
-  // Solo persistimos cuando la caja correspondiente ya se ha restaurado.
-  // Sin esta protección, el primer render guardaba [] y borraba la caja real.
   const storageReady =
     Boolean(usuario) && storageHydratedScope === storageScope;
 
@@ -202,6 +199,7 @@ export const usePaquete = (
 
     localStorage.setItem(KEY_HU, huActual);
   }, [huActual, storageReady, KEY_HU]);
+
   useEffect(() => {
     if (!storageReady) return;
 
@@ -224,85 +222,89 @@ export const usePaquete = (
     }
   }, [fechaInicio, storageReady, KEY_FECHA]);
 
-  // --- ACCIONES ---
+  // ─── Acciones ───────────────────────────────────────────────────────────
 
-  const refrescarListaNegra = async () => {
-    try {
-      //console.log("🔄 Actualizando lista de defectuosos...");
-      const lista = await obtenerDmcDefectuosos();
-      setBlacklist(new Set(lista)); // Usamos Set para que la búsqueda sea instantánea
-    } catch (e) {
-      console.error("Error cargando lista negra", e);
+  const asignarVoltajeUltimaCelda = (voltaje) => {
+    if (celdas.length === 0) {
+      setCeldaInput("");
+
+      return {
+        error: "⚠️ Escanea una celda antes de registrar su voltaje.",
+        type: "short_error",
+      };
     }
+
+    setCeldas((celdasActuales) => {
+      const indiceUltimaCelda = celdasActuales.length - 1;
+
+      return celdasActuales.map((celda, indice) =>
+        indice === indiceUltimaCelda
+          ? { ...celda, voltaje_medido: voltaje }
+          : celda,
+      );
+    });
+
+    setCeldaInput("");
+
+    return {
+      success: true,
+      type: "ok",
+      voltajeAsignado: true,
+      voltaje,
+    };
   };
 
-  const agregarCelda = () => {
-    // 1. VALIDACIONES BÁSICAS
+  const agregarDmc = (dmc) => {
     if (!configCargada) {
       return {
         error: `⏳ Cargando configuración de ${modelo}. Espera un momento.`,
         type: "short_error",
       };
     }
-    if (!huActual)
+
+    if (!huActual) {
       return {
         error: "⚠️ Introduce el HU de la caja primero.",
         type: "short_error",
       };
-    if (!celdaInput) return;
-    if (celdaInput.length < config.len_dmc)
+    }
+
+    if (dmc.length < config.len_dmc) {
       return {
         error: "⚠️ Código muy corto (Faltan datos).",
         type: "short_error",
       };
-    if (celdas.length >= limiteActivo) {
-      return { error: "📦 Paquete lleno.", type: "duplicate_error" };
     }
 
-    // Evitar duplicados
-    if (celdas.some((c) => c.codigo_celda === celdaInput)) {
+    if (celdas.length >= limiteActivo) {
+      return {
+        error: "📦 Paquete lleno.",
+        type: "duplicate_error",
+      };
+    }
+
+    if (celdas.some((celda) => celda.codigo_celda === dmc)) {
       setCeldaInput("");
+
       return {
         error: "⛔ Pieza YA escaneada anteriormente.",
         type: "duplicate_error",
       };
     }
 
-    // 2. EXTRACCIÓN Y VALIDACIÓN DE FECHA
-    const rawDate = celdaInput.slice(-6); // Ej: 311225
-    const dia = parseInt(rawDate.substring(0, 2));
-    const mes = parseInt(rawDate.substring(2, 4));
-    const year = parseInt("20" + rawDate.substring(4, 6));
+    const resultadoFecha = extraerFechaCaducidadDmc(dmc);
 
-    // Validar si es una fecha real (ej: que no sea mes 13 o día 32)
-    const fechaObj = new Date(year, mes - 1, dia);
-    const esFechaValida =
-      fechaObj.getFullYear() === year &&
-      fechaObj.getMonth() === mes - 1 &&
-      fechaObj.getDate() === dia;
-
-    if (!esFechaValida) {
+    if (!resultadoFecha.ok) {
       return {
-        error: `❌ La fecha extraída (${dia}/${mes}/${year}) NO es válida. Revisa el código.`,
-        type: "date_error",
+        error: resultadoFecha.error,
+        type: resultadoFecha.type,
       };
-    }
-
-    // Si pasamos aquí, la fecha es buena. Formateamos para el backend: YYYY-MM-DD
-    // IMPORTANTE: Asegúrate de añadir ceros a la izquierda si hace falta (01 en vez de 1)
-    const mesStr = mes.toString().padStart(2, "0");
-    const diaStr = dia.toString().padStart(2, "0");
-    const fechaFormateada = `${year}-${mesStr}-${diaStr}`;
-
-    // 3. GESTIÓN DE FECHA INICIO
-    if (celdas.length === 0 && !fechaInicio) {
-      setFechaInicio(new Date().toISOString());
     }
 
     const validacionTipoCaja = validarCeldaPorTipoCaja({
       tipoCaja,
-      dmc: celdaInput,
-      fechaCaducidad: fechaFormateada,
+      dmc,
+      fechaCaducidad: resultadoFecha.fechaCaducidad,
       blacklist,
       diasCaducidadProxima: config.caducidad_proxima_dias,
       diasCaducidadProximaDefectuosa: config.caducidad_proxima_defectuosa_dias,
@@ -310,81 +312,117 @@ export const usePaquete = (
 
     if (!validacionTipoCaja.ok) {
       setCeldaInput("");
+
       return {
         error: validacionTipoCaja.error,
         type: validacionTipoCaja.type,
       };
     }
 
-    let has_revision =
-      config.alerta_cada === -1
-        ? celdas.length + 1 === 1 || celdas.length + 1 === limiteActivo
-        : config.alerta_cada > 0 &&
-          (celdas.length + 1) % config.alerta_cada === 0;
+    const controlCalidad = calcularControlCalidad({
+      cantidadActual: celdas.length,
+      alertaCada: config.alerta_cada,
+      limite: limiteActivo,
+    });
 
-    // 4. GUARDAR
     const nuevaCelda = {
       id: Date.now(),
-      codigo_celda: celdaInput,
+      codigo_celda: dmc,
       hu_asociado: huActual,
-      fecha_caducidad: fechaFormateada,
+      fecha_caducidad: resultadoFecha.fechaCaducidad,
+      voltaje_medido: null,
       timestamp: new Date().toISOString(),
-      es_revision: has_revision,
+      es_revision: controlCalidad.esRevision,
     };
 
     const nuevasCeldas = [...celdas, nuevaCelda];
+
+    const datosNivel = calcularNivelCompletado({
+      cantidadActual: nuevasCeldas.length,
+      limite: limiteActivo,
+      tamanoNivel: tamanoNivelActivo,
+    });
+
+    if (celdas.length === 0 && !fechaInicio) {
+      setFechaInicio(new Date().toISOString());
+    }
+
     setCeldas(nuevasCeldas);
     setCeldaInput("");
 
-    // Alerta preventiva
-    const total_celdas = nuevasCeldas.length;
-    let requiereRevision = false;
-
-    if (config.alerta_cada === -1) {
-      requiereRevision =
-        total_celdas === 0 || total_celdas + 1 === limiteActivo;
-    } else if (config.alerta_cada > 0) {
-      requiereRevision = (total_celdas + 1) % config.alerta_cada === 0;
-    }
-
-    const nivelCompletado =
-      total_celdas % tamanoNivelActivo === 0 && total_celdas < limiteActivo;
-
-    const numeroNivel = Math.floor(total_celdas / tamanoNivelActivo);
-
     return {
       success: true,
-      revision: requiereRevision, // true o false
-      numeroPieza: total_celdas + 1, // Para mostrarlo en la alerta
-      nivelCompletado: nivelCompletado,
-      numeroNivel: numeroNivel,
+
+      // Ejemplo alerta_cada = 5:
+      // al escanear la 4 avisa que la próxima, la 5, será revisión.
+      revision: controlCalidad.avisarRevisionProxima,
+      numeroPieza: controlCalidad.numeroPiezaSiguiente,
+
+      ...datosNivel,
     };
+  };
+
+  const agregarCelda = () => {
+    const entrada = clasificarEntradaEscaneo(celdaInput);
+
+    if (entrada.tipo === TIPO_ENTRADA.VACIA) {
+      return;
+    }
+
+    if (entrada.tipo === TIPO_ENTRADA.VOLTAJE_INVALIDO) {
+      setCeldaInput("");
+
+      return {
+        error: entrada.error,
+        type: "short_error",
+      };
+    }
+
+    if (entrada.tipo === TIPO_ENTRADA.VOLTAJE) {
+      // Funciona incluso si la caja acaba de llenarse,
+      // para poder medir la última celda antes de cerrarla.
+      return asignarVoltajeUltimaCelda(entrada.voltaje);
+    }
+
+    return agregarDmc(entrada.dmc);
   };
 
   const borrarCelda = (index) => {
     const nuevas = celdas.filter((_, i) => i !== index);
+
     setCeldas(nuevas);
-    if (nuevas.length === 0) setFechaInicio(null);
+
+    if (nuevas.length === 0) {
+      setFechaInicio(null);
+    }
   };
 
   const borrarDesde = (index) => {
-    // Si l'índex és 2, volem quedar-nos amb 0 i 1.
-    // slice(0, index) fa just això.
     const nuevas = celdas.slice(0, index);
+
     setCeldas(nuevas);
-    if (nuevas.length === 0) setFechaInicio(null);
+
+    if (nuevas.length === 0) {
+      setFechaInicio(null);
+    }
   };
 
   const resetProceso = () => {
-    setHuActual(""); // Limpia el input de caja
-    setBlackboxId(""); // Limpia el input de Blackbox ID
-    setCeldaInput(""); // Limpia el input de pieza
-    setCeldas([]); // <--- ESTA ES LA CLAVE: vacía el array de la tabla
-    setIdGuardado(null); // Quita el modal de éxito
-    setFechaCaducidadCajaGuardada(null); // Limpia la fecha de caducidad guardada
+    setHuActual("");
+    setBlackboxId("");
+    setCeldaInput("");
+    setCeldas([]);
+    setFechaInicio(null);
+    setIdGuardado(null);
+    setFechaCaducidadCajaGuardada(null);
+
+    localStorage.removeItem(KEY_CELDAS);
+    localStorage.removeItem(KEY_HU);
+    localStorage.removeItem(KEY_FECHA);
+    localStorage.removeItem(KEY_BLACKBOX);
   };
 
-  const enviarDatos = async (blackboxId) => {
+  const enviarDatos = async (blackboxIdRecibido = blackboxId) => {
     if (celdas.length < limiteActivo) {
       const faltantes = limiteActivo - celdas.length;
 
@@ -398,7 +436,8 @@ export const usePaquete = (
 
       return;
     }
-    const blackboxIdLimpio = String(blackboxId ?? "").trim();
+
+    const blackboxIdLimpio = String(blackboxIdRecibido ?? "").trim();
 
     if (!blackboxIdLimpio) {
       Swal.fire({
@@ -412,34 +451,33 @@ export const usePaquete = (
     }
 
     setEnviando(true);
+
     try {
-      // Mapeo para el Backend
       const payload = {
         usuario_id: usuario,
         fecha_inicio: fechaInicio || new Date().toISOString(),
         fecha_fin: new Date().toISOString(),
-        is_defective: is_defective,
+        is_defective,
         tipo_caja: tipoCaja,
-        modelo: modelo,
+        modelo,
         blackbox_id: blackboxIdLimpio,
-        celdas: celdas.map((c) => ({
-          dmc_code: c.codigo_celda,
-          fecha_caducidad: c.fecha_caducidad,
-          hu_origen: c.hu_asociado,
-          estado_calidad: c.es_revision ? "REVISION" : "OK",
+
+        celdas: celdas.map((celda) => ({
+          dmc_code: celda.codigo_celda,
+          fecha_caducidad: celda.fecha_caducidad,
+          hu_origen: celda.hu_asociado,
+          estado_calidad: celda.es_revision ? "REVISION" : "OK",
+          voltaje_medido: celda.voltaje_medido ?? null,
         })),
       };
-      console.log(payload);
 
       const respuesta = await enviarPaquete(payload);
-      console.log("RESPUESTA DEL SERVIDOR:", respuesta);
-      // ÉXITO: Guardamos el ID para mostrarlo en el modal
+
       setIdGuardado(respuesta.id_temporal);
       setFechaCaducidadCajaGuardada(respuesta.fecha_caducidad_caja ?? null);
 
       await refrescarListaNegra();
 
-      // Reset
       setCeldas([]);
       setFechaInicio(null);
       setHuActual("");
@@ -450,32 +488,26 @@ export const usePaquete = (
       localStorage.removeItem(KEY_FECHA);
       localStorage.removeItem(KEY_BLACKBOX);
     } catch (error) {
-      if (error.response && error.response.status === 409) {
-        // 409 = CONFLICTO (Duplicados o Lista Negra detectados por el backend)
-
+      if (error.response?.status === 409) {
         const mensajeError =
           error.response.data.detail || "Conflicto de datos.";
-
-        // Reproducir sonido de error si tienes acceso a los audios, o solo la alerta
-        // const audio = new Audio("/sounds/defect_error.mp3"); audio.play();
 
         Swal.fire({
           title: "⛔ NO SE PUEDE CERRAR",
           html: `
-          <div style="text-align: left;">
-            <p>Se han encontrado errores críticos:</p>
-            <div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 5px; border: 1px solid #ef9a9a; font-family: monospace; white-space: pre-wrap;">
-              ${mensajeError}
+            <div style="text-align: left;">
+              <p>Se han encontrado errores críticos:</p>
+              <div style="background: #ffebee; color: #c62828; padding: 10px; border-radius: 5px; border: 1px solid #ef9a9a; font-family: monospace; white-space: pre-wrap;">
+                ${mensajeError}
+              </div>
             </div>
-          </div>
-        `,
+          `,
           icon: "error",
           confirmButtonText: "Entendido, voy a revisar",
           confirmButtonColor: "#d33",
           width: 600,
         });
       } else {
-        // Error 500 u otros
         Swal.fire({
           title: "Error de Servidor",
           text: "Hubo un problema de conexión. Inténtalo de nuevo.",
@@ -487,25 +519,30 @@ export const usePaquete = (
     }
   };
 
-  // ... dentro de src/hooks/usePaquete.js
-
   return {
     huActual,
     setHuActual,
+
     blackboxId,
     setBlackboxId,
+
     celdaInput,
     setCeldaInput,
+
     celdas,
     enviando,
+
     idGuardado,
     fechaCaducidadCajaGuardada,
+
     resetProceso,
     agregarCelda,
     borrarCelda,
     borrarDesde,
     enviarDatos,
+
     configCargada,
+
     limite: limiteActivo,
     limite_normal: config.limite_caja,
     limite_defectuosas: config.limite_defectuosa,
