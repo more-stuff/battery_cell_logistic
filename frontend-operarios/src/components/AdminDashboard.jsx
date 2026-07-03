@@ -21,9 +21,8 @@ const getSavedUser = () => {
   }
 };
 
-const getInitialTab = (user) => {
-  if (user?.rol === "operario_linea") return "modificar";
-  return "incoming";
+const getInitialTab = () => {
+  return "consulta";
 };
 
 export const AdminDashboard = () => {
@@ -44,7 +43,7 @@ export const AdminDashboard = () => {
     localStorage.removeItem("admin_user");
     localStorage.removeItem("admin_token");
     setUser(null);
-    setPestanaActual("incoming");
+    setPestanaActual("consulta");
   };
 
   if (!user) {

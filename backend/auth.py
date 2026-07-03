@@ -19,7 +19,7 @@ ROL_OPERARIO_LINEA = "operario_linea"
 
 # --- CONFIGURACIÓN ---
 load_dotenv()
-SECRET_KEY = os.getenv("SECRET_KEY", "fallo_seguridad_clave_por_defecto")
+SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 horas
 
