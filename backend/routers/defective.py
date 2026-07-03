@@ -15,7 +15,11 @@ router = APIRouter(prefix="/admin", tags=["Defective"])
 
 @router.post("/importar-defectuosos")
 async def importar_defectuosos(
-    file: UploadFile = File(...), db: Session = Depends(get_db)
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.UsuarioAdmin = Depends(
+        auth.require_roles(auth.ROL_SUPERADMIN)
+    ),
 ):
     print(f"🔄 PASO 1: Recibiendo archivo {file.filename}...")
 
@@ -39,22 +43,40 @@ async def importar_defectuosos(
                 return {"error": f"Fallo excel: {str(e)}"}
         else:
             print("📝 PASO 3: Es CSV.")
+
             try:
-                # Detectar separador manualmente
-                primera_linea = (
-                    contents[:1024].decode("utf-8", errors="ignore").split("\n")[0]
-                )
-                num_pyc = primera_linea.count(";")
-                num_comas = primera_linea.count(",")
-                separador = ";" if num_pyc > num_comas else ","
-                print(f"🔧 PASO 4: Separador -> '{separador}'")
+                texto = contents.decode("utf-8-sig", errors="replace")
+                primera_linea = texto.splitlines()[0].strip().strip('"')
 
                 file_obj.seek(0)
-                # 👇 AQUÍ ESTÁ EL ARREGLO DEL DtypeWarning: dtype=str
-                df = pd.read_csv(file_obj, sep=separador, dtype=str)
+
+                if primera_linea.upper() == "DMC":
+                    # CSV con una única columna:
+                    # no se interpreta coma ni ; como separador.
+                    # Cada línea es el DMC completo.
+                    df = pd.read_csv(
+                        file_obj,
+                        sep="\t",
+                        dtype=str,
+                        keep_default_na=False,
+                        encoding="utf-8-sig",
+                    )
+                else:
+                    # CSV con varias columnas: Excel puede usar , o ;
+                    df = pd.read_csv(
+                        file_obj,
+                        sep=None,
+                        engine="python",
+                        dtype=str,
+                        keep_default_na=False,
+                        encoding="utf-8-sig",
+                    )
 
             except Exception as e:
-                return {"error": f"Fallo CSV: {str(e)}"}
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No se ha podido leer el CSV: {str(e)}",
+                )
 
         # 3. Validación de Columnas
         # Limpiamos nombres de columnas

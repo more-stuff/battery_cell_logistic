@@ -43,7 +43,7 @@ def obtener_configuracion(
             if valor > -2 and clave == "alerta_cada" or valor > 0:
                 return valor
             else:
-                defecto
+                return defecto
         except (TypeError, ValueError):
             return defecto
 

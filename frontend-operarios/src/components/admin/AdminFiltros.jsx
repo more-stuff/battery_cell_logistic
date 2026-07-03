@@ -5,6 +5,7 @@ export const AdminFiltros = ({
   onChange,
   onCaducidadProxima,
   onCaducadas,
+  onToggleDmcDefectuosoFueraCajaDefectuosa,
 }) => {
   const cambiarTipoCaja = (valor) => {
     onChange({
@@ -23,6 +24,9 @@ export const AdminFiltros = ({
       },
     });
   };
+
+  const incidenciaActiva =
+    filtros.dmc_defectuoso_fuera_caja_defectuosa === true;
 
   return (
     <div style={estilos.gridFiltros}>
@@ -187,6 +191,86 @@ export const AdminFiltros = ({
               }}
             >
               ⏳ Próxima
+            </button>
+          </div>
+
+          {/* INCIDENCIA ESPECIAL */}
+          <div style={{ marginTop: "16px" }}>
+            <label style={estilos.labelModern}>Incidencias</label>
+
+            <button
+              type="button"
+              onClick={onToggleDmcDefectuosoFueraCajaDefectuosa}
+              aria-pressed={incidenciaActiva}
+              style={{
+                width: "100%",
+                minHeight: "66px",
+                padding: "12px 14px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "12px",
+                textAlign: "left",
+                cursor: "pointer",
+                borderRadius: "10px",
+                border: incidenciaActiva
+                  ? "1px solid #dc2626"
+                  : "1px solid #dbe3ee",
+                backgroundColor: incidenciaActiva ? "#fff1f2" : "#f8fafc",
+                color: incidenciaActiva ? "#b91c1c" : "#334155",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  minWidth: 0,
+                }}
+              >
+                <span style={{ fontSize: "1.15rem" }}>
+                  {incidenciaActiva ? "❗" : "⚠️"}
+                </span>
+
+                <span style={{ minWidth: 0 }}>
+                  <strong
+                    style={{
+                      display: "block",
+                      fontSize: "0.9rem",
+                      marginBottom: "3px",
+                    }}
+                  >
+                    Solo defectuosas mal ubicadas
+                  </strong>
+
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "0.78rem",
+                      lineHeight: "1.35",
+                      color: incidenciaActiva ? "#a16207" : "#64748b",
+                    }}
+                  >
+                    DMC del listado de defectuosos que están en cajas no
+                    defectuosas.
+                  </span>
+                </span>
+              </span>
+
+              <span
+                style={{
+                  flexShrink: 0,
+                  padding: "5px 9px",
+                  borderRadius: "999px",
+                  fontSize: "0.72rem",
+                  fontWeight: "700",
+                  backgroundColor: incidenciaActiva ? "#dc2626" : "#e2e8f0",
+                  color: incidenciaActiva ? "#ffffff" : "#64748b",
+                }}
+              >
+                {incidenciaActiva ? "ACTIVO" : "ACTIVAR"}
+              </span>
             </button>
           </div>
         </div>

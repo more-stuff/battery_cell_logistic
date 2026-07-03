@@ -79,6 +79,7 @@ export const AdminConsulta = () => {
     is_defective: "",
     id_temporal: "",
     usuario_id: "",
+    dmc_defectuoso_fuera_caja_defectuosa: "",
   });
 
   const [colsSeleccionadas, setColsSeleccionadas] = useState(
@@ -163,6 +164,18 @@ export const AdminConsulta = () => {
       fecha_caducidad: formatDate(ayer),
     }));
   };
+  const toggleDmcDefectuosoFueraCajaDefectuosa = () => {
+    setFiltros((prev) => {
+      const activar = !prev.dmc_defectuoso_fuera_caja_defectuosa;
+
+      return {
+        ...prev,
+        dmc_defectuoso_fuera_caja_defectuosa: activar ? true : "",
+        // Al activar esta búsqueda no dejamos un tipo de caja contradictorio.
+        tipo_caja: activar ? "" : prev.tipo_caja,
+      };
+    });
+  };
 
   const limpiarTodo = () => {
     setFiltros({
@@ -178,6 +191,7 @@ export const AdminConsulta = () => {
       is_defective: "",
       id_temporal: "",
       usuario_id: "",
+      dmc_defectuoso_fuera_caja_defectuosa: "",
     });
 
     setResultados([]);
@@ -243,6 +257,9 @@ export const AdminConsulta = () => {
             onChange={handleChange}
             onCaducidadProxima={aplicarCaducidadProxima}
             onCaducadas={aplicarCaducadas}
+            onToggleDmcDefectuosoFueraCajaDefectuosa={
+              toggleDmcDefectuosoFueraCajaDefectuosa
+            }
           />
 
           {/* 2. SELECTOR DE COLUMNAS */}

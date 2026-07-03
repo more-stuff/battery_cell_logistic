@@ -51,7 +51,7 @@ export const estilos = {
   },
   formGrid: {
     display: "grid",
-    gridTemplateColumns: "2fr 1fr 1fr",
+    gridTemplateColumns: "2fr 1fr 1.4fr 1fr",
     gap: 16,
   },
   tablaWrapper: {

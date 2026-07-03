@@ -12,7 +12,7 @@ DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "admin")
 DB_HOST = os.getenv("POSTGRES_HOST", "localhost")
 DB_NAME = os.getenv("POSTGRES_DB", "trazabilidad")
 
-print(f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}")
+# print(f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}")
 
 SQLALCHEMY_DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
 

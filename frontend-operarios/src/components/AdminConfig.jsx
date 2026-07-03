@@ -356,6 +356,9 @@ export const AdminConfig = () => {
       });
 
       const respuesta = await importarDefectuosos(archivo);
+      if (respuesta?.error) {
+        throw new Error(respuesta.error);
+      }
 
       const totalArchivo = Number(respuesta.total_archivo ?? 0);
       const nuevosInsertados = Number(respuesta.nuevos_insertados ?? 0);

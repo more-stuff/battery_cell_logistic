@@ -14,6 +14,43 @@ import {
   validarCeldaPorTipoCaja,
 } from "../services/validarCeldaPorTipoCaja";
 
+const parsearVoltajeMedido = (entrada) => {
+  const texto = String(entrada ?? "").trim();
+
+  // El voltaje es opcional.
+  if (!texto) {
+    return {
+      ok: true,
+      valor: null,
+    };
+  }
+
+  // Acepta V:1.5, V:1,5, 1.5, 1,5 o 1500.
+  // No hacemos conversión entre voltios y milivoltios.
+  const valorSinPrefijo = texto.replace(/^V\s*:\s*/i, "").trim();
+
+  if (!/^[+-]?\d+(?:[.,]\d+)?$/.test(valorSinPrefijo)) {
+    return {
+      ok: false,
+      error: "El voltaje no es válido. Usa, por ejemplo, V:1.5, V:1,5 o 1500.",
+    };
+  }
+
+  const valor = Number(valorSinPrefijo.replace(",", "."));
+
+  if (!Number.isFinite(valor)) {
+    return {
+      ok: false,
+      error: "El voltaje no es válido.",
+    };
+  }
+
+  return {
+    ok: true,
+    valor,
+  };
+};
+
 export const AdminModificarCaja = () => {
   const [idInput, setIdInput] = useState("");
   const [caja, setCaja] = useState(null);
@@ -24,6 +61,7 @@ export const AdminModificarCaja = () => {
 
   const [config, setConfig] = useState({
     caducidad_proxima_dias: 30,
+    caducidad_proxima_defectuosa_dias: 30,
   });
 
   const [blacklist, setBlacklist] = useState(new Set());
@@ -33,6 +71,9 @@ export const AdminModificarCaja = () => {
   const [nuevaFecha, setNuevaFecha] = useState("");
   const [nuevoEstado, setNuevoEstado] = useState("OK");
   const [fechaError, setFechaError] = useState("");
+
+  const [nuevoVoltaje, setNuevoVoltaje] = useState("");
+  const [voltajeError, setVoltajeError] = useState("");
 
   useEffect(() => {
     const cargarBlacklist = async () => {
@@ -106,7 +147,12 @@ export const AdminModificarCaja = () => {
 
       setConfig({
         caducidad_proxima_dias: Number(
-          datosConfig.caducidad_proxima_dias || 30,
+          datosConfig.caducidad_proxima_dias ?? 30,
+        ),
+        caducidad_proxima_defectuosa_dias: Number(
+          datosConfig.caducidad_proxima_defectuosa_dias ??
+            datosConfig.caducidad_proxima_dias ??
+            30,
         ),
       });
 
@@ -132,6 +178,8 @@ export const AdminModificarCaja = () => {
     setNuevoEstado("OK");
     setFechaError("");
     setNuevoHuOrigen("");
+    setNuevoVoltaje("");
+    setVoltajeError("");
   };
 
   const handleEliminarCaja = async () => {
@@ -176,6 +224,8 @@ export const AdminModificarCaja = () => {
     setNuevaFecha(celda.fecha_caducidad ?? "");
     setNuevoEstado(celda.estado_calidad ?? "OK");
     setFechaError("");
+    setNuevoVoltaje("");
+    setVoltajeError("");
   };
 
   const confirmarSustitucion = async () => {
@@ -187,7 +237,19 @@ export const AdminModificarCaja = () => {
       });
       return;
     }
+    const resultadoVoltaje = parsearVoltajeMedido(nuevoVoltaje);
 
+    if (!resultadoVoltaje.ok) {
+      setVoltajeError(resultadoVoltaje.error);
+
+      Swal.fire({
+        icon: "warning",
+        title: "Voltaje no válido",
+        text: resultadoVoltaje.error,
+      });
+
+      return;
+    }
     if (!nuevaFecha) {
       Swal.fire({
         icon: "warning",
@@ -213,6 +275,7 @@ export const AdminModificarCaja = () => {
       fechaCaducidad: nuevaFecha,
       blacklist,
       diasCaducidadProxima: config.caducidad_proxima_dias,
+      diasCaducidadProximaDefectuosa: config.caducidad_proxima_defectuosa_dias,
     });
 
     if (!validacionTipoCaja.ok) {
@@ -253,6 +316,7 @@ export const AdminModificarCaja = () => {
           fecha_caducidad: nuevaFecha,
           hu_origen: nuevoHuOrigen.trim(),
           estado_calidad: nuevoEstado,
+          voltaje_medido: resultadoVoltaje.valor,
         },
         usuario_id: user.username ?? "admin",
       });
@@ -267,6 +331,7 @@ export const AdminModificarCaja = () => {
                 hu_origen: nuevoHuOrigen.trim(),
                 fecha_caducidad: nuevaFecha,
                 estado_calidad: nuevoEstado,
+                voltaje_medido: resultadoVoltaje.valor,
               }
             : c,
         ),
@@ -279,7 +344,7 @@ export const AdminModificarCaja = () => {
       setNuevaFecha("");
       setNuevoEstado("OK");
       setFechaError("");
-
+      setNuevoVoltaje("");
       Swal.fire({
         icon: "success",
         title: "Celda sustituida",
@@ -398,6 +463,7 @@ export const AdminModificarCaja = () => {
                 <tr>
                   <th style={estilos.th}>#</th>
                   <th style={estilos.th}>DMC</th>
+                  <th style={estilos.th}>Voltaje</th>
                   <th style={estilos.th}>Caducidad</th>
                   <th style={estilos.th}>Estado</th>
                   <th style={estilos.th}>HU Origen</th>
@@ -447,6 +513,21 @@ export const AdminModificarCaja = () => {
                           }}
                         >
                           {celda.dmc_code}
+                        </td>
+                        <td
+                          style={{
+                            ...estilos.td,
+                            textAlign: "center",
+                            fontFamily: "monospace",
+                            fontWeight: "bold",
+                            color:
+                              celda.voltaje_medido === null ||
+                              celda.voltaje_medido === undefined
+                                ? "#999"
+                                : "#2c3e50",
+                          }}
+                        >
+                          {celda.voltaje_medido ?? "—"}
                         </td>
 
                         <td style={estilos.td}>{celda.fecha_caducidad}</td>
@@ -531,6 +612,23 @@ export const AdminModificarCaja = () => {
                 value={nuevoHuOrigen}
                 onChange={(e) => setNuevoHuOrigen(e.target.value)}
               />
+            </div>
+            <div>
+              <label style={estilos.label}>Voltaje medido</label>
+
+              <input
+                style={estilos.input}
+                placeholder="Ej: V:1.5"
+                value={nuevoVoltaje}
+                onChange={(e) => {
+                  setNuevoVoltaje(e.target.value);
+                  setVoltajeError("");
+                }}
+              />
+
+              {voltajeError && (
+                <p style={estilos.fechaError}>⚠️ {voltajeError}</p>
+              )}
             </div>
 
             <div>

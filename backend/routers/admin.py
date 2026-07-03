@@ -62,7 +62,13 @@ def login_for_access_token(
 
 # --- 2. ENDPOINT "SECRETO" PARA CREAR USUARIOS (Usar con Postman) ---
 @router.post("/register", status_code=201)
-def registrar_admin(usuario: schemas.AdminCreate, db: Session = Depends(get_db)):
+def registrar_admin(
+    usuario: schemas.AdminCreate,
+    db: Session = Depends(get_db),
+    current_user: models.UsuarioAdmin = Depends(
+        auth.require_roles(auth.ROL_SUPERADMIN)
+    ),
+):
     # Ver si ya existe
     existe = (
         db.query(models.UsuarioAdmin)
@@ -75,7 +81,6 @@ def registrar_admin(usuario: schemas.AdminCreate, db: Session = Depends(get_db))
     # Hashear password
     print(f"👀 USUARIO RECIBIDO: {usuario.username}")
     print(f"👀 LONGITUD PASSWORD: {len(usuario.password)}")
-    print(f"👀 CONTENIDO PASSWORD: '{usuario.password}'")
 
     hashed_pw = auth.get_password_hash(usuario.password)
 
@@ -170,9 +175,6 @@ def registrar_salida(
 
     if datos.fecha_envio != "":
         caja.fecha_envio = datos.fecha_envio
-
-    # Cambiamos estado para saber que ya se procesó
-    caja.estado = "PREPARADO_SALIDA"
 
     db.commit()
     return {"mensaje": "✅ DATOS DE SALIDA GUARDADOS CORRECTAMENTE"}

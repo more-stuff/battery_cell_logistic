@@ -15,9 +15,13 @@ from database import get_db
 import models, auth
 from box_rules import normalizar_modelo
 
+
+from time import perf_counter
+
 router = APIRouter(prefix="/admin", tags=["Consulta"])
 
 BATCH_CSV = 500  # filas por chunk HTTP → 50k filas = 100 chunks en vez de 50.000
+PREVIEW_LIMIT = 252
 
 
 def normalizar_modelo_filtro(modelo: Optional[str]) -> Optional[str]:
@@ -48,70 +52,106 @@ def aplicar_filtros(
     modelo,
     id_temporal,
     usuario_id,
+    dmc_defectuoso_fuera_caja_defectuosa: bool = False,
+    cargar_palet: bool = True,
 ):
-    # Estos JOINs los reutilizará contains_eager — no tocar el orden
-    query = query.join(models.Celda.caja_destino)
-    query = query.outerjoin(
-        models.PaletEntrada,
-        models.Celda.hu_origen_id == models.PaletEntrada.hu_proveedor,
-    )
+    """
+    Sirve tanto para consultas completas como para una consulta ligera
+    que solo busca IDs antes de cargar los datos de preview.
+    """
+
+    if dmc_defectuoso_fuera_caja_defectuosa:
+        # La búsqueda especial arranca desde el listado de DMC defectuosos,
+        # no desde todas las celdas de la base de datos.
+        query = (
+            query.select_from(models.DMCDefectuoso)
+            .join(
+                models.Celda,
+                models.Celda.dmc_code == models.DMCDefectuoso.dmc_code,
+            )
+            .join(
+                models.CajaReempaque,
+                models.Celda.caja_reempaque_id == models.CajaReempaque.id,
+            )
+            .filter(models.CajaReempaque.tipo_caja != "DEFECTUOSA")
+        )
+    else:
+        query = query.join(models.Celda.caja_destino)
+
+    # Para filtrar por HU de entrada sí hace falta unir el palet.
+    # Para preview normal lo evitamos hasta tener solo 252 IDs.
+    if hu_entrada:
+        query = query.join(
+            models.PaletEntrada,
+            models.Celda.hu_origen_id == models.PaletEntrada.hu_proveedor,
+        )
+    elif cargar_palet:
+        query = query.outerjoin(
+            models.PaletEntrada,
+            models.Celda.hu_origen_id == models.PaletEntrada.hu_proveedor,
+        )
 
     if dmc:
         query = query.filter(models.Celda.dmc_code == unquote(dmc).strip())
 
     if hu_entrada:
-        hu_entrada = unquote(hu_entrada).strip()
-        query = query.filter(models.PaletEntrada.hu_proveedor == hu_entrada)
+        query = query.filter(
+            models.PaletEntrada.hu_proveedor == unquote(hu_entrada).strip()
+        )
 
     if hu_salida:
-        hu_salida = unquote(hu_salida).strip()
-        query = query.filter(models.CajaReempaque.hu_silena_outbound == hu_salida)
+        query = query.filter(
+            models.CajaReempaque.hu_silena_outbound == unquote(hu_salida).strip()
+        )
 
     if id_temporal:
-        id_temporal = unquote(id_temporal).strip()
-        query = query.filter(models.CajaReempaque.id_temporal == id_temporal)
+        query = query.filter(
+            models.CajaReempaque.id_temporal == unquote(id_temporal).strip()
+        )
 
     if usuario_id:
-        usuario_id = unquote(usuario_id).strip()
-        query = query.filter(models.CajaReempaque.usuario_id == usuario_id)
+        query = query.filter(
+            models.CajaReempaque.usuario_id == unquote(usuario_id).strip()
+        )
 
     if blackbox_id:
-        blackbox_id = unquote(blackbox_id).strip()
-        query = query.filter(models.CajaReempaque.blackbox_id == blackbox_id)
+        query = query.filter(
+            models.CajaReempaque.blackbox_id == unquote(blackbox_id).strip()
+        )
 
     if fecha_caducidad:
         hoy = date.today()
 
         if fecha_caducidad < hoy:
-            # Si la fecha seleccionada es anterior a hoy, interpretamos que se quieren ver celdas ya caducadas.
-            query = query.filter(
-                models.Celda.fecha_caducidad <= fecha_caducidad,
-            )
+            query = query.filter(models.Celda.fecha_caducidad <= fecha_caducidad)
         else:
-            # celdas que caducan desde hoy hasta la fecha seleccionada.
             query = query.filter(
                 models.Celda.fecha_caducidad >= hoy,
                 models.Celda.fecha_caducidad <= fecha_caducidad,
             )
 
-    if not fecha_inicio:
-        fecha_inicio = datetime.now() - timedelta(days=30)
+    # Antes había un "últimos 30 días" que realmente no se aplicaba
+    # si no venía también fecha_fin. Así cada fecha funciona sola.
+    if fecha_inicio:
+        query = query.filter(models.CajaReempaque.fecha_fin_reempaque >= fecha_inicio)
 
-    if fecha_inicio and fecha_fin:
-        dt_fin = datetime.combine(fecha_fin, time.min) + timedelta(days=1)
-        query = query.filter(
-            models.CajaReempaque.fecha_fin_reempaque.between(fecha_inicio, dt_fin)
-        )
+    if fecha_fin:
+        dt_fin = datetime.combine(
+            fecha_fin.date(),
+            time.min,
+        ) + timedelta(days=1)
+
+        query = query.filter(models.CajaReempaque.fecha_fin_reempaque < dt_fin)
 
     if tipo_caja:
         query = query.filter(models.CajaReempaque.tipo_caja == tipo_caja)
     elif is_defective is not None:
-        # Fallback retrocompatible por si alguna pantalla vieja sigue mandando is_defective
         query = query.filter(models.CajaReempaque.is_defective == is_defective)
 
     if modelo:
-        modelo = normalizar_modelo_filtro(modelo)
-        query = query.filter(models.CajaReempaque.modelo == modelo)
+        query = query.filter(
+            models.CajaReempaque.modelo == normalizar_modelo_filtro(modelo)
+        )
 
     return query
 
@@ -163,6 +203,7 @@ def buscar_preview(
     modelo: Optional[str] = None,
     id_temporal: Optional[str] = None,
     usuario_id: Optional[str] = None,
+    dmc_defectuoso_fuera_caja_defectuosa: bool = False,
     cols: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.UsuarioAdmin = Depends(
@@ -173,9 +214,13 @@ def buscar_preview(
         )
     ),
 ):
-    base_query = db.query(models.Celda)
-    query = aplicar_filtros(
-        base_query,
+    # FASE 1:
+    # Solo se buscan IDs. No se cargan aún PaletEntrada ni todos los campos.
+    t_inicio = perf_counter()
+    ids_query = db.query(models.Celda.id.label("celda_id"))
+
+    ids_query = aplicar_filtros(
+        ids_query,
         dmc,
         hu_entrada,
         hu_salida,
@@ -188,28 +233,68 @@ def buscar_preview(
         modelo,
         id_temporal,
         usuario_id,
+        dmc_defectuoso_fuera_caja_defectuosa=dmc_defectuoso_fuera_caja_defectuosa,
+        cargar_palet=False,
     )
 
-    # FIX: contains_eager reutiliza los JOINs de aplicar_filtros.
-    # Sin esto cada acceso a celda.caja_destino dispara una query extra (N+1).
-    query = query.options(
-        contains_eager(models.Celda.caja_destino),
-        contains_eager(models.Celda.palet_origen),
+    # Solo para la búsqueda especial: orden estable apoyado en la PK
+    # de dmc_defectuosos.
+
+    ids_preview = ids_query.limit(PREVIEW_LIMIT).subquery()
+
+    # FASE 2:
+    # Ya sabemos que son como máximo 252, ahora sí cargamos todos sus datos.
+    query = (
+        db.query(models.Celda)
+        .join(
+            ids_preview,
+            models.Celda.id == ids_preview.c.celda_id,
+        )
+        .join(models.Celda.caja_destino)
+        .outerjoin(
+            models.PaletEntrada,
+            models.Celda.hu_origen_id == models.PaletEntrada.hu_proveedor,
+        )
+        .options(
+            contains_eager(models.Celda.caja_destino),
+            contains_eager(models.Celda.palet_origen),
+        )
     )
 
-    resultados = query.limit(252).all()
+    resultados = query.all()
     columnas_pedidas = cols.split(",") if cols else None
 
+    t_sql = perf_counter()
+
     data = []
+
     for celda in resultados:
-        fila_completa = construir_fila(celda, celda.caja_destino, celda.palet_origen)
+        fila_completa = construir_fila(
+            celda,
+            celda.caja_destino,
+            celda.palet_origen,
+        )
+
         if columnas_pedidas:
             data.append(
-                {k: fila_completa[k] for k in columnas_pedidas if k in fila_completa}
+                {
+                    key: fila_completa[key]
+                    for key in columnas_pedidas
+                    if key in fila_completa
+                }
             )
         else:
             data.append(fila_completa)
 
+    t_fin = perf_counter()
+
+    print(
+        "[PREVIEW DEFECTUOSAS] "
+        f"filas={len(resultados)} | "
+        f"sql_orm={t_sql - t_inicio:.3f}s | "
+        f"serializacion={t_fin - t_sql:.3f}s | "
+        f"total_backend={t_fin - t_inicio:.3f}s"
+    )
     return data
 
 
@@ -228,6 +313,7 @@ def exportar_csv(
     modelo: Optional[str] = None,
     id_temporal: Optional[str] = None,
     usuario_id: Optional[str] = None,
+    dmc_defectuoso_fuera_caja_defectuosa: Optional[bool] = None,
     cols: Optional[str] = Query(None),
     labels: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -257,6 +343,7 @@ def exportar_csv(
         modelo,
         id_temporal,
         usuario_id,
+        dmc_defectuoso_fuera_caja_defectuosa=dmc_defectuoso_fuera_caja_defectuosa,
     )
 
     query = query.options(
