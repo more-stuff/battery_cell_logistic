@@ -40,6 +40,12 @@ export const clasificarEntradaEscaneo = (valor) => {
       error: "⚠️ Voltaje no válido.",
     };
   }
+  if (voltaje < 2000) {
+    return {
+      tipo: TIPO_ENTRADA.VOLTAJE_INVALIDO,
+      error: "⚠️ Voltaje inferior al permitido revisa la medición o la pieza.",
+    };
+  }
 
   return {
     tipo: TIPO_ENTRADA.VOLTAJE,
