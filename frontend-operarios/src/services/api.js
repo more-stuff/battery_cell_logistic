@@ -231,6 +231,7 @@ export const obtenerConfiguracion = async (modelo = "MODELO1") => {
       limite_caducidad_proxima: 180,
       len_dmc: 87,
       caducidad_proxima_dias: 30,
+      tamano_nivel: 45,
     };
   }
 };

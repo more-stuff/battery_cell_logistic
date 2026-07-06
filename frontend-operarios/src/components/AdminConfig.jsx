@@ -29,12 +29,14 @@ const CONFIG_INICIAL = {
   len_dmc: "87",
   caducidad_proxima_dias: "30",
   caducidad_proxima_defectuosa_dias: "30",
+  tamano_nivel: "45",
 };
 
 const CLAVES_CAPACIDAD = [
   "limite_caja",
   "limite_defectuosa",
   "limite_caducidad_proxima",
+  "tamano_nivel",
 ];
 
 const CLAVES_LECTURA = [
