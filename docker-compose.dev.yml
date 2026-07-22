@@ -51,6 +51,19 @@ services:
     environment:
       - VITE_API_URL=http://localhost:8888
 
+  worker-silena:
+    build:
+      context: ./backend
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    command: python -m sync_silena.worker
+    volumes:
+      - ./backend:/app # código en vivo, igual que tu backend dev
+      - ./nas_test:/nas # carpeta local de pruebas (créala: mkdir nas_test)
+
 # Definimos el volumen nuevo para dev
 volumes:
   postgres_data_dev:

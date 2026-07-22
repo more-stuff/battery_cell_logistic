@@ -188,6 +188,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
             tipo_caja=tipo_caja,
             modelo=modelo,
             blackbox_id=blackbox_id,
+            estado_sync="PENDIENTE",
         )
 
         db.add(nueva_caja)

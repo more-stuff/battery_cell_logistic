@@ -85,6 +85,10 @@ class CajaReempaque(Base):
     )
     blackbox_id = Column(String(100), nullable=True)
 
+    estado_sync = Column(String(20), nullable=False, default="NO_APLICA")
+    sync_exportado_at = Column(DateTime, nullable=True)
+    intentos_sync = Column(Integer, nullable=False, default=0)
+
 
 # ==============================================================================
 # TABLA 3: LA PIEZA (CELDA) - El nexo de unión

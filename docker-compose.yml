@@ -12,7 +12,7 @@ services:
     env_file:
       - .env
 
-  # Tu Backend (FastAPI)
+  # Backend (FastAPI)
   backend:
     build: ./backend
     restart: unless-stopped
@@ -23,7 +23,7 @@ services:
     env_file:
       - .env
 
-  # Tu Frontend (React + Vite)
+  # Frontend (React + Vite)
   frontend:
     build: ./frontend-operarios # <-- OJO: El nombre exacto de tu carpeta
     restart: unless-stopped
@@ -31,6 +31,18 @@ services:
       - backend
     ports:
       - "80:80" # Tu app estará en el puerto 80 del servidor
+
+  # Worker de exportación a SILENA
+  worker-silena:
+    build: ./backend # misma imagen que el backend
+    restart: unless-stopped
+    depends_on:
+      - db
+    env_file:
+      - .env
+    command: python -m sync_silena.worker
+    volumes:
+      - /mnt/nas/repacking:/nas # SOLO el worker ve el NAS (host -> contenedor)
 
 volumes:
   postgres_data:
