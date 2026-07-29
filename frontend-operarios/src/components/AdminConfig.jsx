@@ -47,6 +47,18 @@ const CLAVES_LECTURA = [
 
 const CLAVES_CALIDAD = ["alerta_cada"];
 
+// Interruptor global de SILENA: no depende del modelo seleccionado.
+const FLAGS_INICIALES = {
+  sync_activo: false,
+};
+
+const TEXTO_FLAG = {
+  sync_activo: {
+    activado: "Envío a SILENA reanudado: las cajas quedan bloqueadas",
+    desactivado: "Envío a SILENA en pausa: ya se pueden corregir cajas",
+  },
+};
+
 const MILISEGUNDOS_POR_DIA = 24 * 60 * 60 * 1000;
 
 const fechaInputDesdeDias = (dias) => {
@@ -161,9 +173,48 @@ const CampoNumerico = ({
   </label>
 );
 
+const Interruptor = ({
+  titulo,
+  ayuda,
+  activo,
+  onToggle,
+  deshabilitado,
+  colorActivo,
+}) => (
+  <div style={estilos.interruptor}>
+    <div>
+      <span style={estilos.interruptorTitulo}>{titulo}</span>
+      <span style={estilos.interruptorAyuda}>{ayuda}</span>
+    </div>
+
+    <button
+      type="button"
+      role="switch"
+      aria-checked={activo}
+      aria-label={titulo}
+      onClick={onToggle}
+      disabled={deshabilitado}
+      style={{
+        ...estilos.interruptorRail,
+        ...(activo ? colorActivo : {}),
+        ...(deshabilitado ? estilos.botonDeshabilitado : {}),
+      }}
+    >
+      <span
+        style={{
+          ...estilos.interruptorBola,
+          ...(activo ? estilos.interruptorBolaActiva : {}),
+        }}
+      />
+    </button>
+  </div>
+);
+
 export const AdminConfig = () => {
   const [modelo, setModelo] = useState("MODELO1");
   const [config, setConfig] = useState(CONFIG_INICIAL);
+  const [flags, setFlags] = useState(FLAGS_INICIALES);
+  const [guardandoFlag, setGuardandoFlag] = useState(null);
   const [loading, setLoading] = useState(true);
   const [guardandoBloque, setGuardandoBloque] = useState(null);
   const [ultimoIntervaloCalidad, setUltimoIntervaloCalidad] = useState("15");
@@ -187,6 +238,11 @@ export const AdminConfig = () => {
       const configuracionNormalizada = convertirConfiguracion(datos);
 
       setConfig(configuracionNormalizada);
+
+      setFlags({
+        sync_activo: Boolean(datos?.sync_activo ?? FLAGS_INICIALES.sync_activo),
+      });
+
       setFechaCaducidadProxima(
         fechaInputDesdeDias(configuracionNormalizada.caducidad_proxima_dias),
       );
@@ -323,6 +379,38 @@ export const AdminConfig = () => {
       });
     } finally {
       setGuardandoBloque(null);
+    }
+  };
+
+  // Los interruptores se guardan solos al pulsarlos: son globales y no tienen
+  // valores que validar. Si el PUT falla se revierte la palanca.
+  const cambiarFlag = async (clave, nuevoValor) => {
+    if (guardandoFlag) return;
+
+    setGuardandoFlag(clave);
+    setFlags((actual) => ({ ...actual, [clave]: nuevoValor }));
+
+    try {
+      await guardarConfiguracion(modelo, clave, nuevoValor ? "1" : "0");
+
+      Swal.fire({
+        icon: "success",
+        title: TEXTO_FLAG[clave][nuevoValor ? "activado" : "desactivado"],
+        timer: 1800,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      console.error(error);
+
+      setFlags((actual) => ({ ...actual, [clave]: !nuevoValor }));
+
+      Swal.fire({
+        icon: "error",
+        title: "No se ha podido cambiar el interruptor",
+        text: "Revisa la conexión con el servidor e inténtalo de nuevo.",
+      });
+    } finally {
+      setGuardandoFlag(null);
     }
   };
 
@@ -648,6 +736,38 @@ export const AdminConfig = () => {
               </div>
             </div>
           </SeccionConfiguracion>
+
+          <section style={estilos.sincronizacion}>
+            <div>
+              <p style={estilos.sincronizacionEtiqueta}>REGLA GLOBAL</p>
+
+              <h3 style={estilos.importacionTitulo}>
+                Sincronización con SILENA
+              </h3>
+
+              <p style={estilos.importacionTexto}>
+                Este interruptor afecta a toda la instalación, no al modelo
+                seleccionado. Se aplica al instante.
+              </p>
+            </div>
+
+            <div style={estilos.interruptores}>
+              <Interruptor
+                titulo="Enviar cajas a SILENA"
+                ayuda="Genera el fichero de cada caja cerrada en el NAS. Mientras esté activo no se puede modificar ni borrar ninguna caja: de eso se encarga SILENA."
+                activo={flags.sync_activo}
+                colorActivo={estilos.interruptorRailActivo}
+                deshabilitado={Boolean(guardandoFlag)}
+                onToggle={() => cambiarFlag("sync_activo", !flags.sync_activo)}
+              />
+            </div>
+
+            <div style={estilos.sincronizacionResumen}>
+              {flags.sync_activo
+                ? "Las cajas se envían solas al cerrarse y no se pueden modificar ni borrar desde aquí. Pausa el envío para corregir una caja que todavía no haya salido."
+                : "Envío en pausa: las cajas se acumulan y saldrán solas al reanudar. Se pueden corregir las que aún no se hayan enviado; las ya enviadas se gestionan desde SILENA."}
+            </div>
+          </section>
 
           <section style={estilos.importacionDefectuosos}>
             <div style={estilos.importacionCabecera}>

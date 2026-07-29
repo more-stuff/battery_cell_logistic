@@ -19,6 +19,7 @@ from sync_silena.config import (
     ESTADO_ERROR,
 )
 from sync_silena.generador import generar_fichero
+from box_rules import CLAVE_SYNC_ACTIVO, get_flag_global
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,6 +49,32 @@ def _ids_pendientes(db):
 
 
 def _exportar_una(db, caja_id):
+    # Reservamos la fila ANTES de leerla. Si un admin está editando esta caja,
+    # aquí esperamos a que confirme y exportamos sus datos buenos, en lugar de
+    # generar el CSV con los viejos y dejarla en EXPORTADO para siempre.
+    #
+    # Se pide solo el id, y es a propósito, por dos motivos:
+    #
+    #   1. La carga de abajo usa joinedload, que genera un LEFT OUTER JOIN, y
+    #      Postgres rechaza FOR UPDATE sobre el lado nullable de un outer join.
+    #   2. Una consulta de columna no mete la entidad en la identity map de la
+    #      sesión. Si aquí cargásemos la caja entera, la consulta siguiente nos
+    #      devolvería ese objeto ya cacheado en vez de releer, y nos quedaríamos
+    #      justo con los datos viejos que queremos evitar.
+    bloqueada = (
+        db.query(models.CajaReempaque.id)
+        .filter(models.CajaReempaque.id == caja_id)
+        .with_for_update()
+        .one_or_none()
+    )
+
+    # Cada salida cierra su transacción: si no, el bloqueo de esta fila seguiría
+    # retenido durante el resto del lote y un admin se quedaría esperando por
+    # una caja que ni siquiera vamos a exportar.
+    if bloqueada is None:
+        db.rollback()
+        return "omitida"
+
     caja = (
         db.query(models.CajaReempaque)
         .options(joinedload(models.CajaReempaque.celdas))
@@ -55,8 +82,10 @@ def _exportar_una(db, caja_id):
         .one_or_none()
     )
 
-    # Otra vuelta (o un cambio de estado) ya la trató: nada que hacer.
+    # Con la fila ya bloqueada esta comprobación es fiable: si otra vuelta o un
+    # admin la tocaron, lo vemos aquí y no la exportamos por duplicado.
     if caja is None or caja.estado_sync != ESTADO_PENDIENTE:
+        db.rollback()
         return "omitida"
 
     try:
@@ -119,9 +148,35 @@ def _registrar_fallo(db, caja_id):
 # Devuelve cuántas cajas se exportaron con éxito (para decidir la pausa).
 
 
+# Interruptor de la exportación. Se consulta en cada vuelta para poder pausar
+# y reanudar desde la pantalla de configuración, sin tocar el contenedor.
+# Las cajas se quedan en PENDIENTE y se drenan solas al reanudar.
+
+_ultimo_estado_conocido = None
+
+
+def _sync_activo(db):
+    global _ultimo_estado_conocido
+
+    activo = get_flag_global(db, models, CLAVE_SYNC_ACTIVO)
+
+    # Solo se loguea el cambio, no cada vuelta.
+    if activo != _ultimo_estado_conocido:
+        logger.info(
+            "Exportación a SILENA %s.",
+            "reanudada" if activo else "EN PAUSA (interruptor desactivado)",
+        )
+        _ultimo_estado_conocido = activo
+
+    return activo
+
+
 def procesar_vuelta():
     db = SessionLocal()
     try:
+        if not _sync_activo(db):
+            return 0
+
         ids = _ids_pendientes(db)
         if not ids:
             return 0

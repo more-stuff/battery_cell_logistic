@@ -232,6 +232,7 @@ export const obtenerConfiguracion = async (modelo = "MODELO1") => {
       len_dmc: 87,
       caducidad_proxima_dias: 30,
       tamano_nivel: 45,
+      sync_activo: true,
     };
   }
 };

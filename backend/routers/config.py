@@ -2,7 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from box_rules import normalizar_modelo
+from box_rules import (
+    normalizar_modelo,
+    MODELOS_VALIDOS,
+    FLAGS_GLOBALES,
+    CLAVE_SYNC_ACTIVO,
+    get_flag_global,
+    normalizar_valor_flag,
+)
 import models, schemas, auth
 
 router = APIRouter(prefix="/admin", tags=["Config"])
@@ -61,14 +68,12 @@ def obtener_configuracion(
             "caducidad_proxima_dias",
             30,
         ),
-        "caducidad_proxima_dias": get_valor_entero(
-            "caducidad_proxima_dias",
-            30,
-        ),
         "caducidad_proxima_defectuosa_dias": get_valor_entero(
             "caducidad_proxima_defectuosa_dias",
             30,
         ),
+        # Interruptor global: no depende del modelo consultado.
+        CLAVE_SYNC_ACTIVO: get_flag_global(db, models, CLAVE_SYNC_ACTIVO),
     }
 
 
@@ -84,6 +89,41 @@ def actualizar_configuracion(
 ):
     # Buscamos la clave (ej: "alerta_cada")
     modelo = obtener_modelo_valido(modelo)
+
+    # Los interruptores globales se escriben para TODOS los modelos, para que
+    # den el mismo resultado se consulte desde donde se consulte.
+    if datos.clave in FLAGS_GLOBALES:
+        valor = normalizar_valor_flag(datos.valor)
+
+        for modelo_flag in sorted(MODELOS_VALIDOS):
+            fila = (
+                db.query(models.Configuracion)
+                .filter(
+                    models.Configuracion.modelo == modelo_flag,
+                    models.Configuracion.clave == datos.clave,
+                )
+                .first()
+            )
+
+            if fila:
+                fila.valor = valor
+            else:
+                db.add(
+                    models.Configuracion(
+                        modelo=modelo_flag,
+                        clave=datos.clave,
+                        valor=valor,
+                    )
+                )
+
+        db.commit()
+
+        return {
+            "mensaje": "🔄 Interruptor global actualizado",
+            "modelo": "TODOS",
+            "clave": datos.clave,
+            "nuevo_valor": valor,
+        }
 
     if datos.clave == "tamano_nivel":
         try:

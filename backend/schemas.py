@@ -125,6 +125,9 @@ class ConfigResponse(BaseModel):
     tamano_nivel: int
     caducidad_proxima_defectuosa_dias: int
 
+    # Interruptor global de la sincronización con SILENA.
+    sync_activo: bool
+
 
 class AdminCreate(BaseModel):
     username: str

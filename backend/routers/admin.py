@@ -16,7 +16,11 @@ from box_rules import (
     validar_celda_para_tipo_caja,
     get_config_int,
     normalizar_modelo,
+    CLAVE_SYNC_ACTIVO,
+    get_flag_global,
 )
+
+from sync_silena.config import ESTADO_PENDIENTE, ESTADO_EXPORTADO, ESTADO_ERROR
 
 
 from database import get_db
@@ -27,6 +31,43 @@ import models, schemas, auth
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+
+def verificar_caja_editable(db: Session, caja: models.CajaReempaque) -> None:
+    """
+    Decide si una caja se puede modificar o borrar. Dos cortes, en este orden:
+
+    1. Sincronización activa -> no se toca nada, esté como esté la caja. El
+       worker está vivo y podría exportarla a mitad de la edición, dejando en
+       el NAS un CSV con los datos viejos.
+    2. Caja ya exportada -> congelada para siempre, aunque la sincronización
+       esté en pausa. Su fichero ya viajó y SILENA lo tiene: corregirla aquí
+       solo abriría divergencia entre los dos sistemas. Las modificaciones y
+       las bajas de una caja enviada se hacen desde SILENA.
+
+    Queda editable lo que todavía no ha salido (PENDIENTE y ERROR) y solo con
+    el interruptor apagado. Se decide en cada petición, nunca se guarda en la
+    caja.
+    """
+    if get_flag_global(db, models, CLAVE_SYNC_ACTIVO):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "🔒 La sincronización con SILENA está activa: la caja "
+                f"'{caja.id_temporal}' no se puede modificar ni borrar. "
+                "Pausa la sincronización en Configuración para editarla."
+            ),
+        )
+
+    if caja.estado_sync == ESTADO_EXPORTADO:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"🔒 La caja '{caja.id_temporal}' ya se envió a SILENA. Las "
+                "modificaciones y las bajas de una caja enviada se hacen "
+                "desde SILENA."
+            ),
+        )
 
 
 @router.post("/login", response_model=schemas.Token)
@@ -247,9 +288,17 @@ def sustituir_celda(
 ):
     try:
         # --- PASO 1: Buscar la caja ---
+        #
+        # with_for_update: reservamos la fila ANTES de decidir si es editable.
+        # Si el worker la está exportando en este momento, aquí esperamos a que
+        # termine y releemos su resultado, así que el guardián de abajo decide
+        # con el estado bueno y nos devuelve un 409. Sin el bloqueo podríamos
+        # validar sobre un PENDIENTE que el worker convierte en EXPORTADO justo
+        # después, y acabaríamos escribiendo encima de una caja ya enviada.
         caja = (
             db.query(models.CajaReempaque)
             .filter(models.CajaReempaque.id_temporal == datos.id_temporal)
+            .with_for_update()
             .first()
         )
         if not caja:
@@ -257,6 +306,9 @@ def sustituir_celda(
                 status_code=404,
                 detail=f"Caja '{datos.id_temporal}' no encontrada.",
             )
+
+        verificar_caja_editable(db, caja)
+
         tipo_caja = getattr(caja, "tipo_caja", None) or (
             TIPO_DEFECTUOSA if caja.is_defective else TIPO_NORMAL
         )
@@ -387,6 +439,21 @@ def sustituir_celda(
         )
         caja.fecha_caducidad_caja = nueva_caducidad_caja
 
+        # La caja agotó los reintentos y la acabamos de corregir: se reencola
+        # para que el worker lo vuelva a intentar al reanudar la
+        # sincronización. Sin esto se quedaría en ERROR para siempre, porque
+        # el worker solo mira las PENDIENTE.
+        #
+        # Una caja EXPORTADO no llega hasta aquí: verificar_caja_editable la
+        # corta antes.
+        if caja.estado_sync == ESTADO_ERROR:
+            caja.estado_sync = ESTADO_PENDIENTE
+            caja.intentos_sync = 0
+            logger.info(
+                f"Caja {caja.id_temporal} reencolada tras corregirse: "
+                f"estaba en ERROR."
+            )
+
         db.commit()
 
         logger.info(
@@ -423,9 +490,13 @@ def eliminar_caja(
         auth.require_roles(auth.ROL_OPERARIO_LINEA, auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
     ),
 ):
+    # with_for_update: mismo motivo que en sustituir_celda. Reservamos la fila
+    # antes de decidir, para no borrar una caja que el worker está exportando
+    # en este instante.
     caja = (
         db.query(models.CajaReempaque)
         .filter(models.CajaReempaque.id_temporal == id_temporal)
+        .with_for_update()
         .first()
     )
     if not caja:
@@ -433,6 +504,12 @@ def eliminar_caja(
             status_code=404,
             detail=f"❌ No existe ninguna caja con ID '{id_temporal}'.",
         )
+
+    # Solo se borran cajas que nunca salieron: una EXPORTADO la corta
+    # verificar_caja_editable, así que no puede quedarse un CSV huérfano en el
+    # NAS (el worker solo escribe, nunca borra).
+    verificar_caja_editable(db, caja)
+
     try:
         db.delete(caja)  # cascade="all, delete-orphan" borra las celdas automáticamente
         db.commit()

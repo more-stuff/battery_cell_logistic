@@ -330,6 +330,99 @@ export const estilos = {
     fontWeight: 750,
     fontSize: "0.9rem",
   },
+  sincronizacion: {
+    padding: 22,
+    border: "1px solid #cfe0ee",
+    borderRadius: 14,
+    background: "#f9fcff",
+  },
+
+  sincronizacionEtiqueta: {
+    margin: "0 0 6px",
+    color: "#2c5f88",
+    fontSize: "0.7rem",
+    fontWeight: 800,
+    letterSpacing: "0.12em",
+  },
+
+  interruptores: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 14,
+    marginTop: 18,
+  },
+
+  interruptor: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+    padding: 16,
+    border: "1px solid #dbe7f1",
+    borderRadius: 10,
+    background: "#ffffff",
+  },
+
+  interruptorTitulo: {
+    display: "block",
+    marginBottom: 6,
+    color: "#2d4054",
+    fontSize: "0.92rem",
+    fontWeight: 750,
+  },
+
+  interruptorAyuda: {
+    display: "block",
+    color: "#718399",
+    fontSize: "0.8rem",
+    lineHeight: 1.45,
+  },
+
+  // Palanca dibujada con dos divs: el raíl y el botón que se desplaza.
+  interruptorRail: {
+    position: "relative",
+    flexShrink: 0,
+    width: 48,
+    height: 27,
+    padding: 0,
+    border: "none",
+    borderRadius: 999,
+    background: "#c8d4de",
+    cursor: "pointer",
+    transition: "background 0.18s ease",
+  },
+
+  interruptorRailActivo: {
+    background: "#2a9d8f",
+  },
+
+  interruptorBola: {
+    position: "absolute",
+    top: 3,
+    left: 3,
+    width: 21,
+    height: 21,
+    borderRadius: "50%",
+    background: "#ffffff",
+    boxShadow: "0 1px 3px rgba(32, 50, 71, 0.35)",
+    transition: "transform 0.18s ease",
+  },
+
+  interruptorBolaActiva: {
+    transform: "translateX(21px)",
+  },
+
+  sincronizacionResumen: {
+    marginTop: 16,
+    padding: "11px 13px",
+    border: "1px solid #f3d28a",
+    borderRadius: 8,
+    background: "#fff8e8",
+    color: "#8a5a00",
+    fontSize: "0.82rem",
+    lineHeight: 1.45,
+  },
+
   importacionDefectuosos: {
     padding: 22,
     border: "1px solid #f1d7d2",

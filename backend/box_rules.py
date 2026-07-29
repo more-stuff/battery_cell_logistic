@@ -185,6 +185,63 @@ def get_config_int(
         return default
 
 
+# INTERRUPTOR GLOBAL DE LA SINCRONIZACIÓN CON SILENA
+#
+# A diferencia del resto de configuración, este NO es por modelo: afecta a
+# toda la instalación. Se guarda igualmente en `configuraciones` (una fila
+# por modelo, siempre con el mismo valor) para reutilizar la pantalla de
+# administración que ya existe.
+#
+#   sync_activo -> el worker escribe ficheros en el NAS y, por el mismo
+#                  motivo, nadie puede editar ni borrar cajas: a partir del
+#                  envío es SILENA quien gestiona modificaciones y bajas.
+#
+# Es un único interruptor a propósito. Exportar con la edición abierta dejaba
+# que el worker exportase una caja mientras el admin la estaba modificando: el
+# CSV se escribía con los datos viejos y la caja quedaba EXPORTADO, así que ya
+# no se reexportaba nunca. Con un solo flag, worker y edición no pueden estar
+# vivos a la vez y esa carrera es imposible por construcción.
+
+CLAVE_SYNC_ACTIVO = "sync_activo"
+
+# Por defecto NO se exporta: hay que activar la sincronización de forma
+# explícita para que el worker empiece a enviar cajas a SILENA.
+FLAGS_GLOBALES = {
+    CLAVE_SYNC_ACTIVO: False,
+}
+
+VALORES_FLAG_ACTIVO = {"1", "true", "on", "si", "sí"}
+
+
+def normalizar_valor_flag(valor) -> str:
+    # Todo lo que no sea claramente afirmativo se guarda como "0".
+    return "1" if str(valor).strip().lower() in VALORES_FLAG_ACTIVO else "0"
+
+
+def get_flag_global(db, models, clave: str) -> bool:
+    """
+    Lee un interruptor global ignorando el modelo.
+
+    Se evalúa en cada petición y NUNCA se guarda en la caja: apagar el
+    interruptor devuelve el sistema al estado anterior de forma inmediata y
+    retroactiva, sin dejar cajas congeladas.
+
+    Basta con que una fila valga "1" para considerarlo activo.
+    """
+    default = FLAGS_GLOBALES[clave]
+
+    filas = (
+        db.query(models.Configuracion.valor)
+        .filter(models.Configuracion.clave == clave)
+        .all()
+    )
+
+    if not filas:
+        return default
+
+    return any(normalizar_valor_flag(fila[0]) == "1" for fila in filas)
+
+
 def get_limite_por_tipo_caja(
     db,
     models,
