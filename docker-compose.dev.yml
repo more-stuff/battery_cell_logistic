@@ -54,6 +54,8 @@ services:
   worker-silena:
     build:
       context: ./backend
+    init: true # igual que en producción, para probar el apagado aquí
+    stop_grace_period: 60s
     env_file:
       - .env
     depends_on:

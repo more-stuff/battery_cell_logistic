@@ -36,6 +36,8 @@ services:
   worker-silena:
     build: ./backend # misma imagen que el backend
     restart: unless-stopped
+    init: true # un init de verdad como PID 1: la señal llega a Python
+    stop_grace_period: 60s # margen para terminar la caja que tenga en curso
     depends_on:
       - db
     env_file:

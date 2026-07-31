@@ -1,13 +1,16 @@
-from fastapi import (
-    APIRouter,
-    Depends,
-    HTTPException,
-    status,
-)
+"""
+Corrección de cajas ya cerradas: consultar su contenido, sustituir una celda
+o dar de baja la caja entera.
+
+Todo lo que escribe aquí pasa antes por verificar_caja_editable (guards.py):
+una caja que ya viajó a SILENA no se toca desde este lado.
+"""
+
 import logging
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session, joinedload
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from box_rules import (
     TIPO_NORMAL,
@@ -16,209 +19,17 @@ from box_rules import (
     validar_celda_para_tipo_caja,
     get_config_int,
     normalizar_modelo,
-    CLAVE_SYNC_ACTIVO,
-    get_flag_global,
 )
 
-from sync_silena.config import ESTADO_PENDIENTE, ESTADO_EXPORTADO, ESTADO_ERROR
-
+from sync_silena.config import ESTADO_PENDIENTE, ESTADO_ERROR
 
 from database import get_db
 import models, schemas, auth
 
-# Fíjate que NO importamos schemas aquí para el modelo de entrada,
-# lo definimos localmente para evitar el error que tienes.
+from .guards import motivo_bloqueo_edicion, verificar_caja_editable
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/admin", tags=["Admin"])
-
-
-def verificar_caja_editable(db: Session, caja: models.CajaReempaque) -> None:
-    """
-    Decide si una caja se puede modificar o borrar. Dos cortes, en este orden:
-
-    1. Sincronización activa -> no se toca nada, esté como esté la caja. El
-       worker está vivo y podría exportarla a mitad de la edición, dejando en
-       el NAS un CSV con los datos viejos.
-    2. Caja ya exportada -> congelada para siempre, aunque la sincronización
-       esté en pausa. Su fichero ya viajó y SILENA lo tiene: corregirla aquí
-       solo abriría divergencia entre los dos sistemas. Las modificaciones y
-       las bajas de una caja enviada se hacen desde SILENA.
-
-    Queda editable lo que todavía no ha salido (PENDIENTE y ERROR) y solo con
-    el interruptor apagado. Se decide en cada petición, nunca se guarda en la
-    caja.
-    """
-    if get_flag_global(db, models, CLAVE_SYNC_ACTIVO):
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "🔒 La sincronización con SILENA está activa: la caja "
-                f"'{caja.id_temporal}' no se puede modificar ni borrar. "
-                "Pausa la sincronización en Configuración para editarla."
-            ),
-        )
-
-    if caja.estado_sync == ESTADO_EXPORTADO:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"🔒 La caja '{caja.id_temporal}' ya se envió a SILENA. Las "
-                "modificaciones y las bajas de una caja enviada se hacen "
-                "desde SILENA."
-            ),
-        )
-
-
-@router.post("/login", response_model=schemas.Token)
-def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
-):
-    # Buscamos usuario
-    user = (
-        db.query(models.UsuarioAdmin)
-        .filter(models.UsuarioAdmin.username == form_data.username)
-        .first()
-    )
-
-    # Verificamos contraseña
-    if not user or not auth.verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuario o contraseña incorrectos",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Creamos token
-    access_token = auth.create_access_token(
-        data={"sub": user.username, "rol": user.rol}
-    )
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "username": user.username,
-        "rol": user.rol,
-    }
-
-
-# --- 2. ENDPOINT "SECRETO" PARA CREAR USUARIOS (Usar con Postman) ---
-@router.post("/register", status_code=201)
-def registrar_admin(
-    usuario: schemas.AdminCreate,
-    db: Session = Depends(get_db),
-    current_user: models.UsuarioAdmin = Depends(
-        auth.require_roles(auth.ROL_SUPERADMIN)
-    ),
-):
-    # Ver si ya existe
-    existe = (
-        db.query(models.UsuarioAdmin)
-        .filter(models.UsuarioAdmin.username == usuario.username)
-        .first()
-    )
-    if existe:
-        raise HTTPException(status_code=400, detail="El usuario ya existe")
-
-    # Hashear password
-    print(f"👀 USUARIO RECIBIDO: {usuario.username}")
-    print(f"👀 LONGITUD PASSWORD: {len(usuario.password)}")
-
-    hashed_pw = auth.get_password_hash(usuario.password)
-
-    nuevo_admin = models.UsuarioAdmin(
-        username=usuario.username,
-        hashed_password=hashed_pw,
-        rol=usuario.rol,
-    )
-    db.add(nuevo_admin)
-    db.commit()
-    return {"mensaje": f"Usuario {usuario.username} creado con rol {usuario.rol}"}
-
-
-# --- FUNCIÓN PRINCIPAL ---
-@router.put("/incoming/actualizar")
-def actualizar_datos_entrada(
-    datos: schemas.IncomingData,
-    db: Session = Depends(get_db),
-    current_user: models.UsuarioAdmin = Depends(
-        auth.require_roles(auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
-    ),
-):
-    # 1. Buscamos el Palet por su HU
-    palet = (
-        db.query(models.PaletEntrada)
-        .filter(models.PaletEntrada.hu_proveedor == datos.hu_entrada)
-        .first()
-    )
-
-    mensaje = ""
-
-    if not palet:
-        # CASO A: No existe -> Lo creamos nuevo
-        palet = models.PaletEntrada(
-            hu_proveedor=datos.hu_entrada,
-            fecha_recibo=datos.fecha_recibo,
-            awb_swb=datos.awb_swb,
-            np_packing_list=datos.np_packing_list,
-            fecha_caducidad_proveedor=datos.fecha_caducidad,
-            generation_status="PENDING",
-        )
-        db.add(palet)
-        mensaje = "✅ NUEVO REGISTRO: Palet creado y datos guardados."
-    else:
-        # CASO B: Ya existe -> Actualizamos SOLO lo que nos hayan enviado
-        if datos.fecha_recibo != "":
-            palet.fecha_recibo = datos.fecha_recibo
-        if datos.awb_swb:
-            palet.awb_swb = datos.awb_swb
-        if datos.np_packing_list:
-            palet.np_packing_list = datos.np_packing_list
-        if datos.fecha_caducidad != "":
-            palet.fecha_caducidad_proveedor = datos.fecha_caducidad
-
-        mensaje = "🔄 ACTUALIZADO: Datos del palet modificados correctamente."
-
-    db.commit()
-    db.refresh(palet)
-
-    return {"mensaje": mensaje, "hu": palet.hu_proveedor}
-
-
-# RUTA PARA REGISTRAR SALIDA
-@router.put("/outbound/actualizar")
-def registrar_salida(
-    datos: schemas.OutboundData,
-    db: Session = Depends(get_db),
-    current_user: models.UsuarioAdmin = Depends(
-        auth.require_roles(auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
-    ),
-):
-    # 1. Buscamos la caja por su ID Temporal (TMP-...)
-    caja = (
-        db.query(models.CajaReempaque)
-        .filter(models.CajaReempaque.id_temporal == datos.id_temporal)
-        .first()
-    )
-
-    if not caja:
-        raise HTTPException(
-            status_code=404, detail="❌ ERROR: ID de caja no encontrado."
-        )
-
-    if datos.hu_silena:
-        caja.hu_silena_outbound = datos.hu_silena
-
-    if datos.numero_salida:
-        caja.numero_salida_delivery = datos.numero_salida
-
-    if datos.handling_unit:
-        caja.handling_unit = datos.handling_unit
-
-    if datos.fecha_envio != "":
-        caja.fecha_envio = datos.fecha_envio
-
-    db.commit()
-    return {"mensaje": "✅ DATOS DE SALIDA GUARDADOS CORRECTAMENTE"}
+router = APIRouter()
 
 
 @router.get("/{id_temporal}/celdas", response_model=schemas.CajaConCeldas)
@@ -229,8 +40,6 @@ def get_celdas_caja(
         auth.require_roles(auth.ROL_OPERARIO_LINEA, auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
     ),
 ):
-    # joinedload: carga la caja Y sus celdas en UNA SOLA query con JOIN.
-    # Sin esto SQLAlchemy haria 2 queries separadas (lazy load por defecto).
     caja = (
         db.query(models.CajaReempaque)
         .filter(models.CajaReempaque.id_temporal == id_temporal)
@@ -275,6 +84,45 @@ def get_celdas_caja(
         tipo_caja=getattr(caja, "tipo_caja", None),
         modelo=modelo,
         celdas=celdas_detalle,
+    )
+
+
+@router.get(
+    "/cajas/{id_temporal}/estado-edicion",
+    response_model=schemas.EstadoEdicionCaja,
+)
+def get_estado_edicion_caja(
+    id_temporal: str,
+    db: Session = Depends(get_db),
+    current_user: models.UsuarioAdmin = Depends(
+        auth.require_roles(auth.ROL_OPERARIO_LINEA, auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
+    ),
+):
+    """
+    Adelanta la respuesta que daría el guardián de escritura, sin escribir.
+
+    Sirve para que una pantalla avise antes de dejar rellenar un formulario que
+    después se va a rechazar. Es una foto del momento, no una reserva: quien
+    escriba vuelve a pasar por verificar_caja_editable, que es el que manda.
+    """
+    caja = (
+        db.query(models.CajaReempaque)
+        .filter(models.CajaReempaque.id_temporal == id_temporal)
+        .first()
+    )
+
+    if not caja:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No existe ninguna caja con id '{id_temporal}'",
+        )
+
+    motivo = motivo_bloqueo_edicion(db, caja)
+
+    return schemas.EstadoEdicionCaja(
+        id_temporal=caja.id_temporal,
+        editable=motivo is None,
+        motivo=motivo,
     )
 
 

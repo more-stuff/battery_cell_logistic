@@ -32,6 +32,17 @@ export const estilos = {
     marginBottom: 20,
     fontSize: "0.95rem",
   },
+  bannerBloqueo: {
+    background: "#fdf3e3",
+    border: "1px solid #f0b27a",
+    borderLeft: "4px solid #e67e22",
+    borderRadius: 8,
+    padding: "12px 20px",
+    marginBottom: 20,
+    color: "#7e4b12",
+    fontWeight: "bold",
+    fontSize: "0.95rem",
+  },
   label: {
     display: "block",
     fontWeight: "bold",

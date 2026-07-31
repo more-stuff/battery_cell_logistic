@@ -1,10 +1,13 @@
 # Worker de sincronizacion con SILENA exporta los ficheros csv de las cajas en pendiente
 
-import time
 import logging
+import signal
+import threading
 from datetime import datetime
+from enum import Enum
 
-from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session, joinedload
 
 import models
 from database import SessionLocal
@@ -28,6 +31,45 @@ logging.basicConfig(
 logger = logging.getLogger("sync_silena.worker")
 
 
+# APAGADO ELEGANTE
+#
+# El contenedor nos manda SIGTERM al parar o al redesplegar. Sin handler, ese
+# aviso se pierde (encima somos PID 1, que ignora las señales por defecto) y a
+# los pocos segundos llega un SIGKILL que nos puede partir a mitad de una caja:
+# CSV escrito en el NAS y commit sin hacer.
+#
+# La señal solo levanta una bandera. Quien decide dónde parar es el bucle, y
+# para siempre ENTRE cajas, nunca dentro de una.
+_apagando = threading.Event()
+
+
+def _instalar_senales() -> None:
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda *_: _apagando.set())
+
+
+# Resultado de exportar una caja. Los dos tipos de fallo se separan porque se
+# tratan al revés:
+#
+#   FALLO_DATOS -> el problema es de ESTA caja (tipo desconocido, dato
+#                  imposible). Reintentar no lo va a arreglar: suma intento y,
+#                  al agotarlos, la caja pasa a ERROR y deja libre la cola.
+#   FALLO_INFRA -> el NAS o la BD no responden. No es culpa de la caja: no se
+#                  le suma nada y se corta la vuelta. Cuando vuelva el
+#                  servicio, la cola se drena sola.
+#
+# Sin esta distinción, un minuto de NAS caído mandaba a ERROR las primeras
+# cajas de la cola en unas pocas vueltas, y de ahí solo se sale editándolas a
+# mano una a una.
+
+
+class Resultado(str, Enum):
+    OK = "ok"
+    OMITIDA = "omitida"
+    FALLO_DATOS = "fallo_datos"
+    FALLO_INFRA = "fallo_infra"
+
+
 # Selección del lote: solo IDs (consulta ligera que usa el índice parcial).
 # Ordenamos por fecha de cierre para drenar el histórico cronológicamente.
 
@@ -45,10 +87,10 @@ def _ids_pendientes(db):
 
 # Exporta UNA caja. Se recarga fresca con sus celdas (joinedload, sin lazy)
 
-# Devuelve: "ok" | "omitida" | "fallo"
+# Devuelve un Resultado.
 
 
-def _exportar_una(db, caja_id):
+def _exportar_una(db: Session, caja_id: int) -> Resultado:
     # Reservamos la fila ANTES de leerla. Si un admin está editando esta caja,
     # aquí esperamos a que confirme y exportamos sus datos buenos, en lugar de
     # generar el CSV con los viejos y dejarla en EXPORTADO para siempre.
@@ -73,7 +115,19 @@ def _exportar_una(db, caja_id):
     # una caja que ni siquiera vamos a exportar.
     if bloqueada is None:
         db.rollback()
-        return "omitida"
+        return Resultado.OMITIDA
+
+    # Se vuelve a mirar el interruptor AQUÍ, con la fila ya reservada y dentro
+    # de esta misma transacción. La comprobación de arriba, la de una vez por
+    # vuelta, no basta: entre ella y esta caja caben hasta LOTE exportaciones,
+    # y en ese rato un admin puede haber pausado la sincronización y haber
+    # empezado a corregir justo esta caja. El guardián le dejaría (ve el flag
+    # apagado y la caja en PENDIENTE) y nosotros la exportaríamos a medio
+    # corregir. Preguntando bajo el bloqueo, en cuanto la pausa está
+    # confirmada ninguna caja que reservemos después llega a salir.
+    if not get_flag_global(db, models, CLAVE_SYNC_ACTIVO):
+        db.rollback()
+        return Resultado.OMITIDA
 
     caja = (
         db.query(models.CajaReempaque)
@@ -86,7 +140,7 @@ def _exportar_una(db, caja_id):
     # admin la tocaron, lo vemos aquí y no la exportamos por duplicado.
     if caja is None or caja.estado_sync != ESTADO_PENDIENTE:
         db.rollback()
-        return "omitida"
+        return Resultado.OMITIDA
 
     try:
         generar_fichero(caja)
@@ -94,19 +148,46 @@ def _exportar_una(db, caja_id):
         caja.sync_exportado_at = datetime.now()
         db.commit()
         logger.info("Caja %s exportada.", caja.id_temporal)
-        return "ok"
+        return Resultado.OK
+
+    except OSError:
+        # El NAS no responde (share caído, sin permisos, disco lleno). Le pasa
+        # igual a todas las cajas, así que la nuestra se queda en PENDIENTE,
+        # intacta y sin gastar intentos.
+        db.rollback()
+        logger.error(
+            "NAS inaccesible exportando la caja id=%s. Se corta la vuelta.",
+            caja_id,
+            exc_info=True,
+        )
+        return Resultado.FALLO_INFRA
+
+    except OperationalError:
+        # La BD se cayó o la conexión murió a mitad del commit. Tampoco es
+        # culpa de la caja. Ojo: puede que el fichero ya esté escrito en el
+        # NAS; al reintentar se reescribe encima con el mismo nombre y el mismo
+        # contenido, así que no hay duplicado.
+        db.rollback()
+        logger.error(
+            "Fallo de base de datos exportando la caja id=%s. Se corta la vuelta.",
+            caja_id,
+            exc_info=True,
+        )
+        return Resultado.FALLO_INFRA
 
     except Exception:
+        # Lo que queda es un problema de la caja (p. ej. el ValueError de
+        # generar_fichero con un tipo_caja desconocido): esto sí gasta intento.
         db.rollback()
         _registrar_fallo(db, caja_id)
-        return "fallo"
+        return Resultado.FALLO_DATOS
 
 
 # Registra un intento fallido y se incrementa el contador; si agota los
 # reintentos, pasa a ERROR para no bloquear la cola.
 
 
-def _registrar_fallo(db, caja_id):
+def _registrar_fallo(db: Session, caja_id: int) -> None:
     try:
         caja = (
             db.query(models.CajaReempaque)
@@ -155,7 +236,7 @@ def _registrar_fallo(db, caja_id):
 _ultimo_estado_conocido = None
 
 
-def _sync_activo(db):
+def _sync_activo(db: Session) -> bool:
     global _ultimo_estado_conocido
 
     activo = get_flag_global(db, models, CLAVE_SYNC_ACTIVO)
@@ -171,7 +252,7 @@ def _sync_activo(db):
     return activo
 
 
-def procesar_vuelta():
+def procesar_vuelta() -> int:
     db = SessionLocal()
     try:
         if not _sync_activo(db):
@@ -183,26 +264,47 @@ def procesar_vuelta():
 
         exportadas = 0
         for caja_id in ids:
-            if _exportar_una(db, caja_id) == "ok":
+            # Nos están parando: se deja el lote a medias, que es gratis. Las
+            # cajas que no toquemos siguen en PENDIENTE y salen al arrancar.
+            if _apagando.is_set():
+                logger.info("Apagado solicitado: se interrumpe el lote.")
+                break
+
+            resultado = _exportar_una(db, caja_id)
+
+            if resultado is Resultado.OK:
                 exportadas += 1
+            elif resultado is Resultado.FALLO_INFRA:
+                # Si el NAS o la BD están caídos, insistir con las otras 19
+                # cajas solo llena el log. Se corta y se reintenta la vuelta
+                # que viene.
+                break
+
         return exportadas
     finally:
         db.close()  # nunca dejamos conexiones colgando fuera del pool
 
 
-def main():
+def main() -> None:
+    _instalar_senales()
+
     logger.info(
         "Worker de exportación SILENA arrancado. Carpeta de salida: %s",
         CARPETA_SALIDA,
     )
-    while True:
+
+    while not _apagando.is_set():
         try:
             exportadas = procesar_vuelta()
         except Exception:
             logger.error("Error inesperado en el ciclo del worker.", exc_info=True)
             exportadas = 0
 
-        time.sleep(PAUSA if exportadas else PAUSA_VACIA)
+        # wait() en vez de sleep(): espera lo mismo, pero un SIGTERM la corta
+        # al instante en lugar de tener que agotar los 30 segundos.
+        _apagando.wait(PAUSA if exportadas else PAUSA_VACIA)
+
+    logger.info("Worker detenido limpiamente.")
 
 
 if __name__ == "__main__":

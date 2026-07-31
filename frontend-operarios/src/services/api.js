@@ -278,6 +278,11 @@ export const getCeldasCaja = async (idTemporal) => {
   return res.data;
 };
 
+export const getEstadoEdicionCaja = async (idTemporal) => {
+  const res = await api.get(`/admin/cajas/${idTemporal}/estado-edicion`);
+  return res.data; // { id_temporal, editable, motivo }
+};
+
 export const sustituirCelda = async (payload) => {
   const res = await api.post("/admin/sustituir-celda", payload);
   return res.data;

@@ -37,5 +37,14 @@ python -m PyInstaller --onefile program_multimetro.py
 
 muestra silena
 
-docker compose -f docker-compose.dev.yml exec worker-silena \
-    python -m sync_silena.muestra --salida /nas/muestra_silena
+docker compose -f docker-compose.dev.yml exec worker-silena python -m sync_silena.muestra --salida /nas/muestra_silena
+
+
+
+worker:
+
+docker compose stop worker-silena
+
+docker compose up -d worker-silena
+
+docker compose exec worker-silena ls /nas

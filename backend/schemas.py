@@ -93,6 +93,15 @@ class CajaConCeldas(BaseModel):
     tipo_caja: Optional[str] = None
 
 
+# Si una caja admite escrituras ahora mismo, según su estado frente a SILENA.
+# Va aparte de CajaConCeldas: consultar una caja y poder editarla son dos
+# preguntas distintas, y no toda pantalla que lea celdas va a editarlas.
+class EstadoEdicionCaja(BaseModel):
+    id_temporal: str
+    editable: bool
+    motivo: Optional[str] = None
+
+
 # Petición de sustitución de una celda
 class SustitucionInput(BaseModel):
     id_temporal: str  # La caja donde está la celda a sustituir

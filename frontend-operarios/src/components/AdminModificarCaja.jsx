@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 import {
   getCeldasCaja,
+  getEstadoEdicionCaja,
   sustituirCelda,
   eliminarCaja,
   obtenerConfiguracion,
@@ -54,6 +55,7 @@ const parsearVoltajeMedido = (entrada) => {
 export const AdminModificarCaja = () => {
   const [idInput, setIdInput] = useState("");
   const [caja, setCaja] = useState(null);
+  const [bloqueo, setBloqueo] = useState(null);
   const [filtroDmc, setFiltroDmc] = useState("");
   const [celdaElegida, setCeldaElegida] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -156,10 +158,33 @@ export const AdminModificarCaja = () => {
         ),
       });
 
+      // 3. Preguntamos si además se podrá tocar. Lo consultamos al buscar y no
+      // al confirmar para que el operario no rellene una sustitución entera
+      // que el backend va a rechazar con un 409 en el último paso.
+      let estado = null;
+
+      try {
+        estado = await getEstadoEdicionCaja(id);
+      } catch (error) {
+        // Aviso de cortesía: si falla, seguimos mostrando la caja. Quien manda
+        // sigue siendo la comprobación del backend al sustituir o borrar.
+        console.error("No se pudo consultar el estado de edición:", error);
+      }
+
       // Solo mostramos la caja cuando ya conocemos sus reglas correctas.
       setCaja(data);
+      setBloqueo(estado?.editable === false ? estado.motivo : null);
       setFiltroDmc("");
       setCeldaElegida(null);
+
+      if (estado?.editable === false) {
+        Swal.fire({
+          icon: "warning",
+          title: "Caja bloqueada",
+          text: estado.motivo ?? "Esta caja no se puede modificar aqui continua el proceso en silena.",
+          confirmButtonColor: "#e67e22",
+        });
+      }
     } catch (err) {
       const detail = err.response?.data?.detail ?? "Error al buscar la caja.";
       Swal.fire({ icon: "error", title: "Caja no encontrada", text: detail });
@@ -170,6 +195,7 @@ export const AdminModificarCaja = () => {
 
   const limpiar = () => {
     setCaja(null);
+    setBloqueo(null);
     setIdInput("");
     setCeldaElegida(null);
     setFiltroDmc("");
@@ -365,6 +391,11 @@ export const AdminModificarCaja = () => {
       c.dmc_code.toLowerCase().includes(filtroDmc.toLowerCase()),
     ) ?? [];
 
+  // Caja consultable pero de solo lectura: la sincronización está activa o ya
+  // se exportó a SILENA. El backend lo vuelve a comprobar al escribir; esto es
+  // solo para no dejar al operario avanzar en vano.
+  const cajaBloqueada = Boolean(bloqueo);
+
   return (
     <div style={estilos.page}>
       <h2 style={estilos.titulo}>🔧 Modificar Caja Cerrada</h2>
@@ -427,14 +458,19 @@ export const AdminModificarCaja = () => {
             style={{
               ...estilos.btnPeligro,
               marginLeft: "auto",
-              opacity: guardando ? 0.5 : 1,
+              opacity: guardando || cajaBloqueada ? 0.5 : 1,
+              cursor: cajaBloqueada ? "not-allowed" : "pointer",
             }}
             onClick={handleEliminarCaja}
-            disabled={guardando}
+            disabled={guardando || cajaBloqueada}
           >
             🗑️ Eliminar caja
           </button>
         </div>
+      )}
+
+      {caja && cajaBloqueada && (
+        <div style={estilos.bannerBloqueo}>{bloqueo}</div>
       )}
 
       {caja && (
@@ -562,11 +598,17 @@ export const AdminModificarCaja = () => {
 
                         <td style={{ ...estilos.td, textAlign: "center" }}>
                           <button
-                            style={
-                              esElegida ? estilos.btnElegido : estilos.btnElegir
-                            }
+                            style={{
+                              ...(esElegida
+                                ? estilos.btnElegido
+                                : estilos.btnElegir),
+                              opacity: cajaBloqueada ? 0.4 : 1,
+                              cursor: cajaBloqueada
+                                ? "not-allowed"
+                                : "pointer",
+                            }}
                             onClick={() => seleccionarCelda(celda)}
-                            disabled={guardando}
+                            disabled={guardando || cajaBloqueada}
                           >
                             {esElegida ? "✓ Elegida" : "Sustituir"}
                           </button>
