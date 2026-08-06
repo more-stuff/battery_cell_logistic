@@ -22,6 +22,7 @@ class ReempaqueInput(BaseModel):
     modelo: Optional[str] = "MODELO1"
     tipo_caja: Optional[str] = None
     blackbox_id: str
+    puesto_id: int = None  # ← NUEVA: puesto (unidad ZEO) de la sesión
     is_defective: Optional[bool] = False  # retrocompatibilidad
 
 
@@ -154,3 +155,21 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     username: Optional[str] = None
     rol: Optional[str] = None
+
+
+# Un puesto individual (una unidad productiva de ZEO).
+class PuestoResponse(BaseModel):
+    id: int
+    nombre: str
+    pu_integration_code: Optional[str] = None
+    pu_nombre_zeo: Optional[str] = None
+    activo: bool
+
+    class Config:
+        from_attributes = True
+
+
+# Lista de puestos + si viene fresca de ZEO o es caché local.
+class PuestosDisponibles(BaseModel):
+    actualizado: bool  # True = recién traído de ZEO; False = caché local
+    puestos: List[PuestoResponse]

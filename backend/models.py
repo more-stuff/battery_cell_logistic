@@ -89,6 +89,10 @@ class CajaReempaque(Base):
     sync_exportado_at = Column(DateTime, nullable=True)
     intentos_sync = Column(Integer, nullable=False, default=0)
 
+    # parte de zeo
+    puesto_id = Column(Integer, ForeignKey("puestos.id"), nullable=True, index=True)
+    puesto = relationship("Puesto", back_populates="cajas")
+
 
 # ==============================================================================
 # TABLA 3: LA PIEZA (CELDA) - El nexo de unión
@@ -150,3 +154,24 @@ class DMCDefectuoso(Base):
     # El DMC es único y servirá como nuestra llave primaria para búsquedas rápidas
     dmc_code = Column(String, primary_key=True, index=True)
     fecha_importacion = Column(DateTime, default=func.now())
+
+
+class Puesto(Base):
+    __tablename__ = "puestos"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Nombre que ve el operario (ej. "PWC-MESA 4B").
+    nombre = Column(String(100), nullable=False)
+
+    # Código de integración de ZEO (ej. "46346aac-0" o "THIMM_MANIP_3").
+    # nullable hasta que ZEO confirme el mapeo / lo puebla el worker de sync.
+    pu_integration_code = Column(String(100), nullable=True, unique=True)
+
+    # productionUnitName tal cual lo devuelve ZEO, para casarlos en el CRUD.
+    pu_nombre_zeo = Column(String(100), nullable=True)
+
+    activo = Column(Boolean, nullable=False, default=True)
+
+    # Relación inversa: un puesto tiene muchas cajas.
+    cajas = relationship("CajaReempaque", back_populates="puesto")

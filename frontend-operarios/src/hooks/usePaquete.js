@@ -34,6 +34,7 @@ export const usePaquete = (
   usuario,
   tipoCaja = TIPOS_CAJA.NORMAL,
   modelo = MODELO_POR_DEFECTO,
+  puesto = null,
 ) => {
   const is_defective = tipoCaja === TIPOS_CAJA.DEFECTUOSA;
 
@@ -461,6 +462,7 @@ export const usePaquete = (
         tipo_caja: tipoCaja,
         modelo,
         blackbox_id: blackboxIdLimpio,
+        puesto_id: puesto?.id ?? null,
 
         celdas: celdas.map((celda) => ({
           dmc_code: celda.codigo_celda,

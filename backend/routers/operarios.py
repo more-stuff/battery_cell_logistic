@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 import logging
 import uuid
+from sync_zeo.sincronizador import sincronizar_puestos
 from box_rules import (
     TIPO_NORMAL,
     TIPO_DEFECTUOSA,
@@ -167,6 +168,18 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
                 detail="\n".join(errores_tipo_caja),
             )
 
+        if datos.puesto_id is not None:
+            puesto = (
+                db.query(models.Puesto)
+                .filter(models.Puesto.id == datos.puesto_id)
+                .one_or_none()
+            )
+            if puesto is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="El puesto indicado no existe.",
+                )
+
         # Sacamos todas las fechas de las celdas que nos envía el frontend
         lista_fechas = [c.fecha_caducidad for c in datos.celdas]
 
@@ -189,6 +202,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
             modelo=modelo,
             blackbox_id=blackbox_id,
             estado_sync="PENDIENTE",
+            puesto_id=datos.puesto_id,
         )
 
         db.add(nueva_caja)
@@ -250,3 +264,33 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
         )
 
         raise HTTPException(status_code=500, detail="Error guardando caja")
+
+
+@router.get("/puestos", response_model=schemas.PuestosDisponibles)
+def listar_puestos(db: Session = Depends(get_db)):
+    """Lista de puestos para que el operario elija al iniciar sesión.
+
+    Intenta traerlos frescos de ZEO (y de paso refresca la tabla local). Si
+    ZEO no responde, cae a la caché local marcando actualizado=False para que
+    la PDA avise de que la lista puede estar desactualizada.
+    """
+    actualizado = True
+
+    try:
+        sincronizar_puestos(db)
+    except Exception:
+        # ZEO caído o lento: seguimos con lo que haya en la tabla local.
+        logger.warning(
+            "No se pudo sincronizar puestos con ZEO, se usa caché local.",
+            exc_info=True,
+        )
+        actualizado = False
+
+    puestos = (
+        db.query(models.Puesto)
+        .filter(models.Puesto.activo.is_(True))
+        .order_by(models.Puesto.nombre.asc())
+        .all()
+    )
+
+    return schemas.PuestosDisponibles(actualizado=actualizado, puestos=puestos)

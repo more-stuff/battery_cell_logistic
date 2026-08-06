@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { obtenerPuestos } from "../services/api";
 import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
 import { TIPO_CAJA_UI } from "../services/tipoCajaUI";
 import { MODELO_POR_DEFECTO, MODELOS, MODELOS_UI } from "../services/modelos";
@@ -13,12 +14,17 @@ export default function Login({
   setTipoCaja,
   modelo = "",
   setModelo,
+  puesto,
+  setPuesto,
 
   // Compatibilidad temporal con pantallas antiguas.
   // Cuando todas usen tipoCaja, se puede borrar.
   esDefectuoso = false,
 }) {
   const [isHover, setIsHover] = useState(false);
+  const [puestos, setPuestos] = useState([]);
+  const [avisoDesactualizado, setAvisoDesactualizado] = useState(false);
+  const [cargandoPuestos, setCargandoPuestos] = useState(true);
 
   const tipoCajaFinal = esDefectuoso ? TIPOS_CAJA.DEFECTUOSA : tipoCaja;
   const tema = getLoginUI(tipoCajaFinal);
@@ -31,6 +37,25 @@ export default function Login({
   });
 
   const puedeIniciar = usuario.trim().length > 0 && Boolean(modelo);
+
+  useEffect(() => {
+    let activo = true;
+    obtenerPuestos()
+      .then((data) => {
+        if (!activo) return;
+        setPuestos(data.puestos);
+        setAvisoDesactualizado(!data.actualizado); // ZEO no respondió
+      })
+      .catch((err) => {
+        console.error("No se pudieron cargar los puestos:", err);
+      })
+      .finally(() => {
+        if (activo) setCargandoPuestos(false);
+      });
+    return () => {
+      activo = false;
+    };
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -71,6 +96,45 @@ export default function Login({
                 </option>
               ))}
             </select>
+          </div>
+          <div style={styles.selectorGroup}>
+            <label style={styles.label}>Puesto</label>
+
+            <select
+              value={puesto?.id ?? ""}
+              onChange={(e) => {
+                const id = Number(e.target.value);
+                const elegido = puestos.find((p) => p.id === id) || null;
+                setPuesto(elegido);
+              }}
+              style={styles.select}
+              disabled={cargandoPuestos}
+              required
+            >
+              <option value="" disabled>
+                {cargandoPuestos
+                  ? "Cargando puestos…"
+                  : "Selecciona tu puesto…"}
+              </option>
+              {puestos.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                </option>
+              ))}
+            </select>
+
+            {avisoDesactualizado && (
+              <p
+                style={{
+                  color: "#e67e22",
+                  fontSize: "0.85rem",
+                  marginTop: "6px",
+                }}
+              >
+                ⚠️ No se pudo conectar con ZEO. La lista de puestos puede estar
+                desactualizada.
+              </p>
+            )}
           </div>
 
           <div style={styles.selectorGroup}>

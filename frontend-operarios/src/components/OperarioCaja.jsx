@@ -19,6 +19,7 @@ export default function OperarioCaja({
   usuario,
   tipoCaja = TIPOS_CAJA.NORMAL,
   modelo = MODELO_POR_DEFECTO,
+  puesto,
   onVolverLogin,
 }) {
   const tipoUI = getTipoCajaUI(tipoCaja);
@@ -48,7 +49,7 @@ export default function OperarioCaja({
     enviarDatos,
     limite,
     level_size,
-  } = usePaquete(usuario, tipoCaja, modelo);
+  } = usePaquete(usuario, tipoCaja, modelo, puesto);
 
   const nivelActual =
     celdas.length === 0 ? 0 : Math.floor((celdas.length - 1) / level_size);

@@ -292,3 +292,8 @@ export const eliminarCaja = async (id_temporal) => {
   const response = await api.delete(`/admin/cajas/${id_temporal}`);
   return response.data;
 };
+
+export const obtenerPuestos = async () => {
+  const { data } = await api.get("/reempaque/puestos");
+  return data;
+};

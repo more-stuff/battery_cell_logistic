@@ -13,6 +13,7 @@ export default function Operario({
   const [logueado, setLogueado] = useState(false);
   const [tipoCaja, setTipoCaja] = useState(tipoCajaInicial);
   const [modelo, setModelo] = useState("");
+  const [puesto, setPuesto] = useState(null);
 
   useTitulo(titulo);
 
@@ -23,12 +24,15 @@ export default function Operario({
         setUsuario={setUsuario}
         onLogin={() => {
           if (!modelo) return;
+          if (!puesto) return; // ← no deja entrar sin puesto
           setLogueado(true);
         }}
         tipoCaja={tipoCaja}
         setTipoCaja={setTipoCaja}
         modelo={modelo}
         setModelo={setModelo}
+        puesto={puesto}
+        setPuesto={setPuesto}
       />
     );
   }
@@ -38,9 +42,11 @@ export default function Operario({
       usuario={usuario}
       tipoCaja={tipoCaja}
       modelo={modelo}
+      puesto={puesto}
       onVolverLogin={() => {
         setModelo("");
         setTipoCaja(tipoCajaInicial);
+        setPuesto(null);
         setLogueado(false);
       }}
     />
