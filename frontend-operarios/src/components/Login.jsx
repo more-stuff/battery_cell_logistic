@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { obtenerPuestos } from "../services/api";
 import { TIPOS_CAJA } from "../services/validarCeldaPorTipoCaja";
 import { TIPO_CAJA_UI } from "../services/tipoCajaUI";
@@ -25,6 +25,8 @@ export default function Login({
   const [puestos, setPuestos] = useState([]);
   const [avisoDesactualizado, setAvisoDesactualizado] = useState(false);
   const [cargandoPuestos, setCargandoPuestos] = useState(true);
+  const [puestoAbierto, setPuestoAbierto] = useState(false);
+  const puestoRef = useRef(null);
 
   const tipoCajaFinal = esDefectuoso ? TIPOS_CAJA.DEFECTUOSA : tipoCaja;
   const tema = getLoginUI(tipoCajaFinal);
@@ -36,7 +38,8 @@ export default function Login({
     isHover,
   });
 
-  const puedeIniciar = usuario.trim().length > 0 && Boolean(modelo);
+  const puedeIniciar =
+    usuario.trim().length > 0 && Boolean(modelo) && Boolean(puesto);
 
   useEffect(() => {
     let activo = true;
@@ -56,6 +59,25 @@ export default function Login({
       activo = false;
     };
   }, []);
+
+  // Cerrar el desplegable de puestos al clicar fuera o pulsar Escape.
+  useEffect(() => {
+    if (!puestoAbierto) return;
+
+    const alClicarFuera = (e) => {
+      if (!puestoRef.current?.contains(e.target)) setPuestoAbierto(false);
+    };
+    const alPulsarTecla = (e) => {
+      if (e.key === "Escape") setPuestoAbierto(false);
+    };
+
+    document.addEventListener("mousedown", alClicarFuera);
+    document.addEventListener("keydown", alPulsarTecla);
+    return () => {
+      document.removeEventListener("mousedown", alClicarFuera);
+      document.removeEventListener("keydown", alPulsarTecla);
+    };
+  }, [puestoAbierto]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -100,28 +122,51 @@ export default function Login({
           <div style={styles.selectorGroup}>
             <label style={styles.label}>Puesto</label>
 
-            <select
-              value={puesto?.id ?? ""}
-              onChange={(e) => {
-                const id = Number(e.target.value);
-                const elegido = puestos.find((p) => p.id === id) || null;
-                setPuesto(elegido);
-              }}
-              style={styles.select}
-              disabled={cargandoPuestos}
-              required
-            >
-              <option value="" disabled>
-                {cargandoPuestos
-                  ? "Cargando puestos…"
-                  : "Selecciona tu puesto…"}
-              </option>
-              {puestos.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre}
-                </option>
-              ))}
-            </select>
+            <div style={styles.puestoWrapper} ref={puestoRef}>
+              <button
+                type="button"
+                onClick={() => setPuestoAbierto((abierto) => !abierto)}
+                style={styles.puestoTrigger(puestoAbierto, Boolean(puesto))}
+                disabled={cargandoPuestos}
+                aria-haspopup="listbox"
+                aria-expanded={puestoAbierto}
+              >
+                <span>
+                  {cargandoPuestos
+                    ? "Cargando puestos…"
+                    : (puesto?.nombre ?? "Selecciona tu puesto…")}
+                </span>
+                <span style={styles.puestoFlecha(puestoAbierto)}>▼</span>
+              </button>
+
+              {puestoAbierto && (
+                <div style={styles.puestoPanel} role="listbox">
+                  {puestos.length === 0 ? (
+                    <p style={styles.puestoMensaje}>
+                      No hay puestos disponibles.
+                    </p>
+                  ) : (
+                    <div style={styles.puestoGrid}>
+                      {puestos.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          role="option"
+                          aria-selected={puesto?.id === p.id}
+                          onClick={() => {
+                            setPuesto(p);
+                            setPuestoAbierto(false);
+                          }}
+                          style={styles.puestoBoton(puesto?.id === p.id)}
+                        >
+                          {p.nombre}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {avisoDesactualizado && (
               <p

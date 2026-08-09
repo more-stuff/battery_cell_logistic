@@ -168,6 +168,88 @@ export const getLoginStyles = ({ tema, tieneModoEspecial, isHover }) => ({
     fontWeight: "700",
   },
 
+  // El puesto se elige en un desplegable propio: el disparador imita al
+  // <select> del resto del formulario, pero al abrirse muestra los puestos en
+  // rejilla para que el operario los vea de golpe sin bajar por una lista.
+  puestoWrapper: {
+    position: "relative",
+  },
+
+  puestoTrigger: (abierto, haySeleccion) => ({
+    width: "100%",
+    padding: "16px",
+    fontSize: "1rem",
+    borderRadius: "12px",
+    borderWidth: "2px",
+    borderStyle: "solid",
+    borderColor: abierto ? tema.inputFocusBorder : "#e1e8ed",
+    outline: "none",
+    color: haySeleccion ? "#2c3e50" : "#95a5a6",
+    backgroundColor: "#ffffff",
+    boxSizing: "border-box",
+    fontWeight: "700",
+    fontFamily: "inherit",
+    textAlign: "left",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "10px",
+    transition: "border-color 0.2s ease",
+  }),
+
+  puestoFlecha: (abierto) => ({
+    fontSize: "0.7rem",
+    color: tema.tituloColor,
+    transform: abierto ? "rotate(180deg)" : "none",
+    transition: "transform 0.2s ease",
+  }),
+
+  puestoPanel: {
+    position: "absolute",
+    top: "calc(100% + 8px)",
+    left: 0,
+    right: 0,
+    padding: "12px",
+    backgroundColor: "#ffffff",
+    border: "2px solid #e1e8ed",
+    borderRadius: "12px",
+    boxShadow: "0 12px 24px rgba(0, 0, 0, 0.12)",
+    zIndex: 10,
+  },
+
+  puestoGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))",
+    gap: "10px",
+    maxHeight: "240px",
+    overflowY: "auto",
+  },
+
+  puestoBoton: (seleccionado) => ({
+    padding: "14px 8px",
+    fontSize: "0.95rem",
+    fontWeight: "800",
+    borderRadius: "12px",
+    borderWidth: "2px",
+    borderStyle: "solid",
+    borderColor: seleccionado ? tema.bordeTopColor : "#e1e8ed",
+    backgroundColor: seleccionado ? tema.bordeTopColor : "#ffffff",
+    color: seleccionado ? "#ffffff" : "#2c3e50",
+    cursor: "pointer",
+    outline: "none",
+    transition: "all 0.15s ease",
+    wordBreak: "break-word",
+    lineHeight: 1.25,
+  }),
+
+  puestoMensaje: {
+    color: tema.textoColor,
+    fontSize: "0.95rem",
+    margin: 0,
+    padding: "10px 4px",
+  },
+
   input: {
     width: "100%",
     padding: "18px",
