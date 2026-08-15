@@ -167,6 +167,14 @@ export const estilos = {
     fontWeight: "bold",
     fontSize: "0.8rem",
   },
+  badgeCobre: {
+    background: "#8a590a",
+    color: "white",
+    padding: "4px 10px",
+    borderRadius: "999px",
+    fontWeight: "bold",
+    fontSize: "0.8rem",
+  },
   badgeModelo: {
     background: "#34495e",
     color: "white",

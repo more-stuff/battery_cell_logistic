@@ -2,6 +2,39 @@ export const TIPOS_CAJA = {
   NORMAL: "NORMAL",
   DEFECTUOSA: "DEFECTUOSA",
   CADUCIDAD_PROXIMA: "CADUCIDAD_PROXIMA",
+  COBRE: "COBRE",
+};
+
+export const MOTIVOS = {
+  DEFECTUOSO: "DEFECTUOSO",
+  COBRE: "COBRE",
+};
+
+const MOTIVO_POR_TIPO_CAJA = {
+  [TIPOS_CAJA.DEFECTUOSA]: MOTIVOS.DEFECTUOSO,
+  [TIPOS_CAJA.COBRE]: MOTIVOS.COBRE,
+};
+
+const CAJA_POR_MOTIVO = {
+  [MOTIVOS.DEFECTUOSO]: TIPOS_CAJA.DEFECTUOSA,
+  [MOTIVOS.COBRE]: TIPOS_CAJA.COBRE,
+};
+
+const ETIQUETA_MOTIVO = {
+  [MOTIVOS.DEFECTUOSO]: "DEFECTUOSA",
+  [MOTIVOS.COBRE]: "CON PARTÍCULAS DE COBRE",
+};
+
+const ICONO_MOTIVO = {
+  [MOTIVOS.DEFECTUOSO]: "🚨",
+  [MOTIVOS.COBRE]: "🟠",
+};
+
+const NOMBRE_CAJA = {
+  [TIPOS_CAJA.NORMAL]: "normal",
+  [TIPOS_CAJA.DEFECTUOSA]: "defectuosa",
+  [TIPOS_CAJA.CADUCIDAD_PROXIMA]: "de caducidad próxima",
+  [TIPOS_CAJA.COBRE]: "de cobre",
 };
 
 const normalizarFechaLocal = (date) => {
@@ -40,28 +73,48 @@ export const validarCeldaPorTipoCaja = ({
   tipoCaja,
   dmc,
   fechaCaducidad,
-  blacklist,
+  motivoBloqueo, // null si el DMC está libre
   diasCaducidadProxima,
   diasCaducidadProximaDefectuosa,
 }) => {
-  const estaEnBlacklist = blacklist?.has?.(dmc) ?? false;
+  const bloqueo = motivoBloqueo ?? null;
 
-  const diasAplicables =
-    tipoCaja === TIPOS_CAJA.DEFECTUOSA
-      ? Number(diasCaducidadProximaDefectuosa ?? diasCaducidadProxima ?? 30)
-      : Number(diasCaducidadProxima ?? 30);
+  // Las cajas de material bloqueado comparten margen de caducidad: son la
+  // misma caja física y el mismo tipo de material retenido.
+  const esCajaBloqueo =
+    tipoCaja === TIPOS_CAJA.DEFECTUOSA || tipoCaja === TIPOS_CAJA.COBRE;
+
+  const diasAplicables = esCajaBloqueo
+    ? Number(diasCaducidadProximaDefectuosa ?? diasCaducidadProxima ?? 30)
+    : Number(diasCaducidadProxima ?? 30);
 
   const caducidadProxima = esCaducidadProxima(fechaCaducidad, diasAplicables);
-
   const caducada = estaCaducada(fechaCaducidad);
 
-  if (tipoCaja === TIPOS_CAJA.NORMAL) {
-    if (estaEnBlacklist) {
+  if (bloqueo !== null && !CAJA_POR_MOTIVO[bloqueo]) {
+    // Motivo desconocido: cortar es más seguro que dejarla pasar por no
+    // reconocerlo. Puede ocurrir si el backend añade un motivo y la PDA aún
+    // no se ha actualizado.
+    return {
+      ok: false,
+      type: "defect_error",
+      error: `⛔ Este DMC tiene un motivo de bloqueo desconocido (${bloqueo}). Avisa a mantenimiento.`,
+    };
+  }
+
+  // --- CAJAS QUE NO ADMITEN MATERIAL BLOQUEADO ---
+  if (
+    tipoCaja === TIPOS_CAJA.NORMAL ||
+    tipoCaja === TIPOS_CAJA.CADUCIDAD_PROXIMA
+  ) {
+    if (bloqueo !== null) {
       return {
         ok: false,
         type: "defect_error",
         error:
-          "🚨 PIEZA DEFECTUOSA: Este DMC está marcado como defectuoso y no puede entrar en una caja normal.",
+          `${ICONO_MOTIVO[bloqueo]} PIEZA ${ETIQUETA_MOTIVO[bloqueo]}: ` +
+          `debe ir a una caja ${NOMBRE_CAJA[CAJA_POR_MOTIVO[bloqueo]]}, ` +
+          `no a una caja ${NOMBRE_CAJA[tipoCaja]}.`,
       };
     }
 
@@ -69,88 +122,80 @@ export const validarCeldaPorTipoCaja = ({
       return {
         ok: false,
         type: "date_error",
-        error:
-          "⛔ PIEZA CADUCADA: Esta celda ya está caducada y no puede entrar en una caja normal.",
+        error: `⛔ PIEZA CADUCADA: no puede entrar en una caja ${NOMBRE_CAJA[tipoCaja]}.`,
       };
     }
 
-    if (caducidadProxima) {
+    if (tipoCaja === TIPOS_CAJA.NORMAL && caducidadProxima) {
       return {
         ok: false,
         type: "date_error",
         error:
-          "⏳ CADUCIDAD PRÓXIMA: Esta celda debe ir a una caja de caducidad próxima, no a una caja normal.",
+          "⏳ CADUCIDAD PRÓXIMA: esta celda debe ir a una caja de caducidad próxima.",
+      };
+    }
+
+    if (tipoCaja === TIPOS_CAJA.CADUCIDAD_PROXIMA && !caducidadProxima) {
+      return {
+        ok: false,
+        type: "date_error",
+        error:
+          "⏳ PIEZA FUERA DE UMBRAL: esta celda no está dentro del rango de caducidad próxima.",
       };
     }
 
     return { ok: true };
   }
 
-  if (tipoCaja === TIPOS_CAJA.DEFECTUOSA) {
-    if (!estaEnBlacklist) {
-      return {
-        ok: false,
-        type: "defect_error",
-        error:
-          "🚨 PIEZA NO DEFECTUOSA: Este DMC no está marcado como defectuoso y no puede entrar en una caja defectuosa.",
-      };
-    }
+  // --- CAJAS DE MATERIAL BLOQUEADO (DEFECTUOSA y COBRE) ---
+  const motivoEsperado = MOTIVO_POR_TIPO_CAJA[tipoCaja];
 
-    if (caducada) {
-      return {
-        ok: false,
-        type: "date_error",
-        error:
-          "⛔ PIEZA CADUCADA: Esta celda ya está caducada y no puede entrar en una caja defectuosa.",
-      };
-    }
-
-    if (caducidadProxima) {
-      return {
-        ok: false,
-        type: "date_error",
-        error:
-          "error: `⏳ CADUCIDAD PRÓXIMA EN DEFECTUOSAS: Esta celda está dentro del margen especial de ${diasAplicables} días configurado para defectuosas y no puede entrar en esta caja.`,",
-      };
-    }
-
-    return { ok: true };
+  if (!motivoEsperado) {
+    return {
+      ok: false,
+      type: "date_error",
+      error: `Tipo de caja no reconocido: ${tipoCaja}`,
+    };
   }
 
-  if (tipoCaja === TIPOS_CAJA.CADUCIDAD_PROXIMA) {
-    if (estaEnBlacklist) {
-      return {
-        ok: false,
-        type: "defect_error",
-        error:
-          "🚨 PIEZA DEFECTUOSA: Este DMC está marcado como defectuoso y debe ir a una caja defectuosa, no a caducidad próxima.",
-      };
-    }
-
-    if (caducada) {
-      return {
-        ok: false,
-        type: "date_error",
-        error:
-          "⛔ PIEZA CADUCADA: Esta celda ya está caducada y no puede entrar en una caja de caducidad próxima.",
-      };
-    }
-
-    if (!caducidadProxima) {
-      return {
-        ok: false,
-        type: "date_error",
-        error:
-          "⏳ PIEZA FUERA DE UMBRAL: Esta celda no está dentro del rango de caducidad próxima.",
-      };
-    }
-
-    return { ok: true };
+  if (bloqueo === null) {
+    return {
+      ok: false,
+      type: "defect_error",
+      error:
+        `${ICONO_MOTIVO[motivoEsperado]} PIEZA NO ${ETIQUETA_MOTIVO[motivoEsperado]}: ` +
+        `este DMC no está marcado y no puede entrar en una caja ${NOMBRE_CAJA[tipoCaja]}.`,
+    };
   }
 
-  return {
-    ok: false,
-    type: "date_error",
-    error: `Tipo de caja no reconocido: ${tipoCaja}`,
-  };
+  if (bloqueo !== motivoEsperado) {
+    return {
+      ok: false,
+      type: "defect_error",
+      error:
+        `${ICONO_MOTIVO[bloqueo]} CAJA EQUIVOCADA: este DMC está marcado como ` +
+        `${ETIQUETA_MOTIVO[bloqueo]}, no como ${ETIQUETA_MOTIVO[motivoEsperado]}. ` +
+        `Debe ir a una caja ${NOMBRE_CAJA[CAJA_POR_MOTIVO[bloqueo]]}.`,
+    };
+  }
+
+  if (caducada) {
+    return {
+      ok: false,
+      type: "date_error",
+      error: `⛔ PIEZA CADUCADA: no puede entrar en una caja ${NOMBRE_CAJA[tipoCaja]}.`,
+    };
+  }
+
+  if (caducidadProxima) {
+    return {
+      ok: false,
+      type: "date_error",
+      error:
+        `⏳ CADUCIDAD PRÓXIMA: esta celda está dentro del margen especial de ` +
+        `${diasAplicables} días y no puede entrar en una caja ${NOMBRE_CAJA[tipoCaja]}.`,
+    };
+  }
+
+  return { ok: true };
 };

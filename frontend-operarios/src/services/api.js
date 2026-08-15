@@ -257,9 +257,17 @@ export const guardarConfiguracion = async (modelo, clave, valor) => {
   }
 };
 
-export const importarDefectuosos = async (archivo) => {
+export const importarDefectuosos = async (
+  archivo,
+  motivo = "DEFECTUOSO",
+  reclasificar = false,
+) => {
   const formData = new FormData();
   formData.append("file", archivo);
+  formData.append("motivo", motivo);
+  // FormData solo transporta texto: el backend lo interpreta como booleano.
+  formData.append("reclasificar", reclasificar ? "true" : "false");
+
   return (
     await api.post("/admin/importar-defectuosos", formData, {
       headers: { "Content-Type": "multipart/form-data" },
@@ -267,10 +275,16 @@ export const importarDefectuosos = async (archivo) => {
   ).data;
 };
 
+export const obtenerVersionBlacklist = async () => {
+  const response = await api.get("/admin/dmc-defectuosos/version");
+  return Number(response.data?.version ?? 0);
+};
+
+// Listas completas. Devuelve { version, defectuosos: [...], cobre: [...] }.
+// Ya no es un array plano: hace falta saber POR QUÉ está bloqueado cada DMC.
 export const obtenerDmcDefectuosos = async () => {
   const response = await api.get("/admin/dmc-defectuosos");
-
-  return response.data; // Devuelve ["A1", "B2", ...]
+  return response.data;
 };
 
 export const getCeldasCaja = async (idTemporal) => {

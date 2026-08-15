@@ -57,6 +57,25 @@ export const LOGIN_UI = {
     avisoInferior: "⏳ Atención: Modo de registro de caducidad próxima activo",
     patternColor: "#f39c12",
   },
+
+  [TIPOS_CAJA.COBRE]: {
+    fondoGlobal: "#f8f5f0",
+    bordeTopAncho: 12,
+    bordeTopColor: "#8a590a",
+    tituloColor: "#8a590a",
+    textoColor: "#7a6a4a",
+    botonBg: "#8a590a",
+    botonSombraHover: "rgba(138, 89, 10, 0.4)",
+    icono: "🟠",
+    cardShadow: "0 20px 40px rgba(138, 89, 10, 0.15)",
+    inputFocusBorder: "#8a590a",
+    titulo: "ACCESO OPERARIO COBRE",
+    subtitulo: "Zona de celdas con partículas de cobre.",
+    placeholder: "ID AUTORIZADO",
+    botonTexto: "Confirmar Acceso",
+    avisoInferior: "🟠 Atención: Modo de registro de partículas de cobre activo",
+    patternColor: "#8a590a",
+  },
 };
 
 export const getLoginUI = (tipoCaja) => {

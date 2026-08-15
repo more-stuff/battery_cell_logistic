@@ -192,6 +192,16 @@ export const AdminFiltros = ({
             >
               ⏳ Próxima
             </button>
+            <button
+              type="button"
+              onClick={() => cambiarTipoCaja("COBRE")}
+              style={{
+                ...estilos.btnSegment,
+                ...(filtros.tipo_caja === "COBRE" ? estilos.activeCobre : {}),
+              }}
+            >
+              🟠 Cobre
+            </button>
           </div>
 
           {/* INCIDENCIA ESPECIAL */}
@@ -241,7 +251,7 @@ export const AdminFiltros = ({
                       marginBottom: "3px",
                     }}
                   >
-                    Solo defectuosas mal ubicadas
+                    Material bloqueado mal ubicado
                   </strong>
 
                   <span
@@ -252,8 +262,8 @@ export const AdminFiltros = ({
                       color: incidenciaActiva ? "#a16207" : "#64748b",
                     }}
                   >
-                    DMC del listado de defectuosos que están en cajas no
-                    defectuosas.
+                    DMC de las listas de bloqueo que están en un tipo de caja
+                    que no les corresponde.
                   </span>
                 </span>
               </span>

@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import (
-    Session,
-    contains_eager,
-)  # ← contains_eager en vez de joinedload
+from sqlalchemy import or_, and_
+from sqlalchemy.orm import Session, contains_eager
+
 from typing import Optional
 from datetime import date, datetime, time, timedelta
 from urllib.parse import unquote
@@ -61,8 +60,12 @@ def aplicar_filtros(
     """
 
     if dmc_defectuoso_fuera_caja_defectuosa:
-        # La búsqueda especial arranca desde el listado de DMC defectuosos,
-        # no desde todas las celdas de la base de datos.
+        # Material bloqueado que NO está en la caja que le corresponde.
+        #
+        # Antes bastaba con "no está en una caja DEFECTUOSA", porque la lista
+        # tenía un único significado. Con dos motivos excluyentes hay que
+        # cruzar: un DMC de cobre en su caja COBRE es correcto, y con el
+        # filtro antiguo salía como incidencia.
         query = (
             query.select_from(models.DMCDefectuoso)
             .join(
@@ -73,7 +76,18 @@ def aplicar_filtros(
                 models.CajaReempaque,
                 models.Celda.caja_reempaque_id == models.CajaReempaque.id,
             )
-            .filter(models.CajaReempaque.tipo_caja != "DEFECTUOSA")
+            .filter(
+                or_(
+                    and_(
+                        models.DMCDefectuoso.motivo == "DEFECTUOSO",
+                        models.CajaReempaque.tipo_caja != "DEFECTUOSA",
+                    ),
+                    and_(
+                        models.DMCDefectuoso.motivo == "COBRE",
+                        models.CajaReempaque.tipo_caja != "COBRE",
+                    ),
+                )
+            )
         )
     else:
         query = query.join(models.Celda.caja_destino)

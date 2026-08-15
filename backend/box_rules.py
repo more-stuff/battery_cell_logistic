@@ -1,14 +1,38 @@
 from datetime import date, timedelta
 from typing import Optional
+from sqlalchemy import text
+from sqlalchemy import func, cast, Integer
 
 TIPO_NORMAL = "NORMAL"
 TIPO_DEFECTUOSA = "DEFECTUOSA"
 TIPO_CADUCIDAD_PROXIMA = "CADUCIDAD_PROXIMA"
+TIPO_COBRE = "COBRE"
+
 
 TIPOS_CAJA_VALIDOS = {
     TIPO_NORMAL,
     TIPO_DEFECTUOSA,
     TIPO_CADUCIDAD_PROXIMA,
+    TIPO_COBRE,
+}
+
+MOTIVO_DEFECTUOSO = "DEFECTUOSO"
+MOTIVO_COBRE = "COBRE"
+
+MOTIVOS_VALIDOS = {
+    MOTIVO_DEFECTUOSO,
+    MOTIVO_COBRE,
+}
+
+MOTIVO_POR_TIPO_CAJA = {
+    TIPO_DEFECTUOSA: MOTIVO_DEFECTUOSO,
+    TIPO_COBRE: MOTIVO_COBRE,
+}
+
+# Texto legible para los mensajes de error del operario.
+ETIQUETA_MOTIVO = {
+    MOTIVO_DEFECTUOSO: "defectuoso",
+    MOTIVO_COBRE: "con partículas de cobre",
 }
 
 MODELO1 = "MODELO1"
@@ -64,21 +88,30 @@ def validar_celda_para_tipo_caja(
     tipo_caja: str,
     dmc: str,
     fecha_caducidad: date,
-    dmc_es_defectuoso: bool,
+    motivo_bloqueo: Optional[str],
     caducidad_proxima_dias: int,
     caducidad_proxima_defectuosa_dias: int,
 ) -> None:
     """
+    motivo_bloqueo: None si el DMC está libre, o MOTIVO_DEFECTUOSO /
+    MOTIVO_COBRE si está en la lista de bloqueo. Son excluyentes.
+
     Reglas:
 
     - NORMAL:
-      usa caducidad_proxima_dias.
+      no admite material bloqueado. Usa caducidad_proxima_dias.
 
     - CADUCIDAD_PROXIMA:
-      usa caducidad_proxima_dias.
+      no admite material bloqueado. Usa caducidad_proxima_dias.
 
     - DEFECTUOSA:
-      usa exclusivamente caducidad_proxima_defectuosa_dias.
+      solo admite motivo DEFECTUOSO.
+      Usa exclusivamente caducidad_proxima_defectuosa_dias.
+
+    - COBRE:
+      solo admite motivo COBRE.
+      Usa caducidad_proxima_defectuosa_dias, igual que DEFECTUOSA: es la
+      misma caja física y el mismo tipo de material retenido.
 
     Si la celda es válida, no devuelve nada.
     Si no lo es, lanza ValueError.
@@ -86,6 +119,13 @@ def validar_celda_para_tipo_caja(
 
     if tipo_caja not in TIPOS_CAJA_VALIDOS:
         raise ValueError(f"Tipo de caja no válido: {tipo_caja}")
+
+    if motivo_bloqueo is not None and motivo_bloqueo not in MOTIVOS_VALIDOS:
+        # Defensivo: si en BD apareciera un motivo desconocido, mejor cortar
+        # que dejar pasar la celda por no reconocerlo.
+        raise ValueError(
+            f"El DMC {dmc} tiene un motivo de bloqueo desconocido: {motivo_bloqueo}."
+        )
 
     caducada = esta_caducada(fecha_caducidad)
 
@@ -99,62 +139,69 @@ def validar_celda_para_tipo_caja(
         caducidad_proxima_defectuosa_dias,
     )
 
-    if tipo_caja == TIPO_NORMAL:
-        if dmc_es_defectuoso:
+    # ---- CAJAS QUE NO ADMITEN MATERIAL BLOQUEADO ----
+
+    if tipo_caja in (TIPO_NORMAL, TIPO_CADUCIDAD_PROXIMA):
+        if motivo_bloqueo is not None:
+            caja_destino = next(
+                t for t, m in MOTIVO_POR_TIPO_CAJA.items() if m == motivo_bloqueo
+            )
             raise ValueError(
-                f"El DMC {dmc} está marcado como defectuoso y no puede entrar en una caja NORMAL."
+                f"El DMC {dmc} está marcado como "
+                f"{ETIQUETA_MOTIVO[motivo_bloqueo]} y debe entrar en una caja "
+                f"{caja_destino}, no en una caja {tipo_caja}."
             )
 
         if caducada:
             raise ValueError(
-                f"El DMC {dmc} está caducado y no puede entrar en una caja NORMAL."
+                f"El DMC {dmc} está caducado y no puede entrar en una caja {tipo_caja}."
             )
 
-        if caducidad_proxima_normal:
+        if tipo_caja == TIPO_NORMAL and caducidad_proxima_normal:
             raise ValueError(
                 f"El DMC {dmc} tiene caducidad próxima y debe entrar en una caja CADUCIDAD_PROXIMA."
             )
 
-        return
-
-    if tipo_caja == TIPO_DEFECTUOSA:
-        if not dmc_es_defectuoso:
-            raise ValueError(
-                f"El DMC {dmc} no está marcado como defectuoso y no puede entrar en una caja DEFECTUOSA."
-            )
-
-        if caducada:
-            raise ValueError(
-                f"El DMC {dmc} está caducado y no puede entrar en una caja DEFECTUOSA."
-            )
-
-        if caducidad_proxima_defectuosa:
-            raise ValueError(
-                f"El DMC {dmc} entra dentro del margen especial de "
-                f"caducidad próxima para defectuosas "
-                f"({caducidad_proxima_defectuosa_dias} días) y no puede "
-                f"entrar en una caja DEFECTUOSA."
-            )
-
-        return
-
-    if tipo_caja == TIPO_CADUCIDAD_PROXIMA:
-        if dmc_es_defectuoso:
-            raise ValueError(
-                f"El DMC {dmc} está marcado como defectuoso y no puede entrar en una caja CADUCIDAD_PROXIMA."
-            )
-
-        if caducada:
-            raise ValueError(
-                f"El DMC {dmc} está caducado y no puede entrar en una caja CADUCIDAD_PROXIMA."
-            )
-
-        if not caducidad_proxima_normal:
+        if tipo_caja == TIPO_CADUCIDAD_PROXIMA and not caducidad_proxima_normal:
             raise ValueError(
                 f"El DMC {dmc} no está dentro del umbral de caducidad próxima."
             )
 
         return
+
+    # ---- CAJAS DE MATERIAL BLOQUEADO (DEFECTUOSA y COBRE) ----
+
+    motivo_esperado = MOTIVO_POR_TIPO_CAJA[tipo_caja]
+
+    if motivo_bloqueo is None:
+        raise ValueError(
+            f"El DMC {dmc} no está marcado como "
+            f"{ETIQUETA_MOTIVO[motivo_esperado]} y no puede entrar en una caja {tipo_caja}."
+        )
+
+    if motivo_bloqueo != motivo_esperado:
+        caja_correcta = next(
+            t for t, m in MOTIVO_POR_TIPO_CAJA.items() if m == motivo_bloqueo
+        )
+        raise ValueError(
+            f"El DMC {dmc} está marcado como {ETIQUETA_MOTIVO[motivo_bloqueo]}, "
+            f"no como {ETIQUETA_MOTIVO[motivo_esperado]}. Debe entrar en una "
+            f"caja {caja_correcta}."
+        )
+
+    if caducada:
+        raise ValueError(
+            f"El DMC {dmc} está caducado y no puede entrar en una caja {tipo_caja}."
+        )
+
+    if caducidad_proxima_defectuosa:
+        raise ValueError(
+            f"El DMC {dmc} entra dentro del margen especial de caducidad "
+            f"próxima ({caducidad_proxima_defectuosa_dias} días) y no puede "
+            f"entrar en una caja {tipo_caja}."
+        )
+
+    return
 
 
 def get_config_int(
@@ -250,7 +297,7 @@ def get_limite_por_tipo_caja(
 ) -> int:
     modelo = normalizar_modelo(modelo)
 
-    if tipo_caja == TIPO_DEFECTUOSA:
+    if tipo_caja in (TIPO_DEFECTUOSA, TIPO_COBRE):
         return get_config_int(
             db,
             models,
@@ -275,3 +322,38 @@ def get_limite_por_tipo_caja(
         "limite_caja",
         180,
     )
+
+
+CLAVE_BLACKLIST_VERSION = "blacklist_version"
+
+
+def get_blacklist_version(db, models) -> int:
+    """MAX y no any(): si las dos filas divergieran, gana la más alta, que
+    invalida caché de más — el lado seguro del error."""
+
+    valor = (
+        db.query(func.max(cast(models.Configuracion.valor, Integer)))
+        .filter(models.Configuracion.clave == CLAVE_BLACKLIST_VERSION)
+        .scalar()
+    )
+
+    return int(valor) if valor is not None else 0
+
+
+def bump_blacklist_version(db, models) -> int:
+    """
+    Se llama desde CUALQUIER escritura sobre dmc_defectuosos.
+    Sin filtro por modelo: las dos filas se mueven juntas.
+    No hace commit — se une a la transacción de quien llama, para que la
+    versión no suba si la escritura acaba en rollback.
+    """
+
+    db.execute(
+        text(
+            "UPDATE configuraciones SET valor = (valor::int + 1)::text "
+            "WHERE clave = :clave"
+        ),
+        {"clave": CLAVE_BLACKLIST_VERSION},
+    )
+
+    return get_blacklist_version(db, models)

@@ -101,6 +101,7 @@ export const AdminModificarCaja = () => {
 
     if (tipo === TIPOS_CAJA.DEFECTUOSA) return "DEFECTUOSA";
     if (tipo === TIPOS_CAJA.CADUCIDAD_PROXIMA) return "CADUCIDAD PRÓXIMA";
+    if (tipo === TIPOS_CAJA.COBRE) return "COBRE";
     return "NORMAL";
   };
 
@@ -111,6 +112,7 @@ export const AdminModificarCaja = () => {
     if (tipo === TIPOS_CAJA.CADUCIDAD_PROXIMA) {
       return estilos.badgeCaducidadProxima;
     }
+    if (tipo === TIPOS_CAJA.COBRE) return estilos.badgeCobre;
 
     return estilos.badgeEstandar;
   };
@@ -181,7 +183,9 @@ export const AdminModificarCaja = () => {
         Swal.fire({
           icon: "warning",
           title: "Caja bloqueada",
-          text: estado.motivo ?? "Esta caja no se puede modificar aqui continua el proceso en silena.",
+          text:
+            estado.motivo ??
+            "Esta caja no se puede modificar aqui continua el proceso en silena.",
           confirmButtonColor: "#e67e22",
         });
       }
@@ -603,9 +607,7 @@ export const AdminModificarCaja = () => {
                                 ? estilos.btnElegido
                                 : estilos.btnElegir),
                               opacity: cajaBloqueada ? 0.4 : 1,
-                              cursor: cajaBloqueada
-                                ? "not-allowed"
-                                : "pointer",
+                              cursor: cajaBloqueada ? "not-allowed" : "pointer",
                             }}
                             onClick={() => seleccionarCelda(celda)}
                             disabled={guardando || cajaBloqueada}

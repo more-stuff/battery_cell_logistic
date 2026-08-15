@@ -7,6 +7,7 @@ import {
   guardarConfiguracion,
   importarDefectuosos,
 } from "../services/api";
+import { getTipoCajaUI } from "../services/tipoCajaUI";
 
 const MODELOS = [
   {
@@ -46,6 +47,34 @@ const CLAVES_LECTURA = [
 ];
 
 const CLAVES_CALIDAD = ["alerta_cada"];
+
+// Listas de bloqueo disponibles. Los motivos son EXCLUYENTES: un DMC solo
+// puede estar en una de las dos. Espeja MOTIVOS_VALIDOS de box_rules.py.
+const LISTAS_BLOQUEO = [
+  {
+    motivo: "DEFECTUOSO",
+    etiqueta: "DMC defectuosos",
+    cajaDestino: "DEFECTUOSA",
+  },
+  {
+    motivo: "COBRE",
+    etiqueta: "DMC con partículas de cobre",
+    cajaDestino: "COBRE",
+  },
+];
+
+const getLista = (motivo) =>
+  LISTAS_BLOQUEO.find((item) => item.motivo === motivo) ?? LISTAS_BLOQUEO[0];
+
+// Insignia de color para los diálogos de importación (SweetAlert2 solo
+// acepta HTML como string, no JSX). Usa el mismo color que el resto de la UI
+// para ese tipo de caja, para que se reconozca de un vistazo qué lista se
+// está tocando.
+const badgeListaHtml = (lista) => {
+  const color = getTipoCajaUI(lista.cajaDestino).colorPrincipal;
+
+  return `<span style="display:inline-block;padding:8px 18px;border-radius:999px;background:${color};color:#ffffff;font-weight:800;font-size:0.95rem;letter-spacing:0.03em;text-transform:uppercase;margin-bottom:10px;">${lista.etiqueta}</span>`;
+};
 
 // Interruptor global de SILENA: no depende del modelo seleccionado.
 const FLAGS_INICIALES = {
@@ -218,6 +247,8 @@ export const AdminConfig = () => {
   const [loading, setLoading] = useState(true);
   const [guardandoBloque, setGuardandoBloque] = useState(null);
   const [ultimoIntervaloCalidad, setUltimoIntervaloCalidad] = useState("15");
+
+  const [motivoImport, setMotivoImport] = useState("DEFECTUOSO");
 
   const [fechaCaducidadProxima, setFechaCaducidadProxima] = useState(() =>
     fechaInputDesdeDias(CONFIG_INICIAL.caducidad_proxima_dias),
@@ -419,10 +450,20 @@ export const AdminConfig = () => {
 
     if (!archivo) return;
 
+    const lista = getLista(motivoImport);
+
     const confirmacion = await Swal.fire({
       icon: "warning",
-      title: "¿Importar DMC defectuosos?",
-      text: `Se procesará "${archivo.name}". Debe ser un CSV con una columna llamada exactamente DMC.`,
+      title: "¿Importar archivo?",
+      html: `
+        ${badgeListaHtml(lista)}
+        <p>Se procesará "<b>${archivo.name}</b>".</p>
+        <p>Debe tener una columna llamada exactamente <b>DMC</b>.</p>
+        <p style="color:#c0392b;font-weight:bold;margin-top:12px;">
+          Los DMC que ya estén en la otra lista se CAMBIARÁN a
+          ${motivoImport}. Esta acción no se puede deshacer.
+        </p>
+      `,
       showCancelButton: true,
       confirmButtonText: "Sí, importar",
       cancelButtonText: "Cancelar",
@@ -437,7 +478,10 @@ export const AdminConfig = () => {
     try {
       Swal.fire({
         title: "Importando archivo...",
-        text: "Comprobando DMC y evitando duplicados.",
+        html: `
+          ${badgeListaHtml(lista)}
+          <p>Comprobando DMC y evitando duplicados.</p>
+        `,
         allowOutsideClick: false,
         allowEscapeKey: false,
         didOpen: () => {
@@ -445,7 +489,8 @@ export const AdminConfig = () => {
         },
       });
 
-      const respuesta = await importarDefectuosos(archivo);
+      const respuesta = await importarDefectuosos(archivo, motivoImport, true);
+
       if (respuesta?.error) {
         throw new Error(respuesta.error);
       }
@@ -453,15 +498,19 @@ export const AdminConfig = () => {
       const totalArchivo = Number(respuesta.total_archivo ?? 0);
       const nuevosInsertados = Number(respuesta.nuevos_insertados ?? 0);
       const yaExistian = Number(respuesta.ya_existian ?? 0);
+      const conflictos = Number(respuesta.conflictos_otro_motivo ?? 0);
+      const reclasificados = Number(respuesta.reclasificados ?? 0);
 
       Swal.fire({
         icon: "success",
         title: "Importación completada",
         html: `
-        <p>El archivo se ha procesado correctamente.</p>
+        ${badgeListaHtml(getLista(respuesta.motivo ?? motivoImport))}
         <p><strong>DMC únicos en el archivo:</strong> ${totalArchivo}</p>
         <p><strong>Nuevos importados:</strong> ${nuevosInsertados}</p>
-        <p><strong>Ya existentes:</strong> ${yaExistian}</p>
+        <p><strong>Ya existentes en esta lista:</strong> ${yaExistian}</p>
+        <p><strong>Estaban en la otra lista:</strong> ${conflictos}</p>
+        <p><strong>Reclasificados:</strong> ${reclasificados}</p>
       `,
       });
     } catch (error) {
@@ -470,7 +519,7 @@ export const AdminConfig = () => {
       Swal.fire({
         icon: "error",
         title: "No se ha podido importar el archivo",
-        text: "Debe ser un CSV válido, con separador ; o , y una columna llamada exactamente DMC.",
+        text: "Debe ser un CSV o XLSX válido, con una columna llamada exactamente DMC.",
       });
     } finally {
       event.target.value = "";
@@ -480,6 +529,7 @@ export const AdminConfig = () => {
   const modeloActivo = MODELOS.find((item) => item.codigo === modelo);
   const fechaMinimaCaducidad = fechaInputDesdeDias(1);
   const bloqueGuardando = (nombreBloque) => guardandoBloque === nombreBloque;
+  const listaSeleccionada = getLista(motivoImport);
 
   return (
     <main style={estilos.contenedor}>
@@ -577,8 +627,8 @@ export const AdminConfig = () => {
                 sufijo="piezas"
               />
               <CampoNumerico
-                etiqueta="Caja defectuosa"
-                ayuda="Máximo de piezas en una caja de defectuosas."
+                etiqueta="Caja defectuosa y de cobre"
+                ayuda="Máximo de piezas. Las cajas de cobre usan este mismo límite: son la misma caja física."
                 nombre="limite_defectuosa"
                 valor={config.limite_defectuosa}
                 onChange={handleChange}
@@ -656,7 +706,7 @@ export const AdminConfig = () => {
 
               <label style={estilos.campo}>
                 <span style={estilos.campoEtiqueta}>
-                  Caducidad próxima en defectuosas hasta
+                  Caducidad próxima en defectuosas y cobre hasta
                 </span>
 
                 <input
@@ -671,8 +721,9 @@ export const AdminConfig = () => {
                 />
 
                 <span style={estilos.ayuda}>
-                  Margen exclusivo de cajas defectuosas. Una celda defectuosa
-                  dentro de este plazo no podrá entrar en una caja DEFECTUOSA.
+                  Margen exclusivo de las cajas de material bloqueado. Una celda
+                  dentro de este plazo no podrá entrar en una caja DEFECTUOSA ni
+                  en una caja COBRE.
                 </span>
               </label>
             </div>
@@ -774,13 +825,13 @@ export const AdminConfig = () => {
               <div>
                 <p style={estilos.importacionEtiqueta}>REGLA GLOBAL</p>
 
-                <h3 style={estilos.importacionTitulo}>
-                  Lista de DMC defectuosos
-                </h3>
+                <h3 style={estilos.importacionTitulo}>Listas de bloqueo</h3>
 
                 <p style={estilos.importacionTexto}>
-                  Esta lista se comparte entre MODELO1 y MODELO2. Un DMC
-                  incluido aquí solo podrá introducirse en una caja DEFECTUOSA.
+                  Estas listas se comparten entre MODELO1 y MODELO2. Un DMC solo
+                  puede estar en una de las dos: si está marcado como
+                  defectuoso, únicamente entrará en una caja DEFECTUOSA; si está
+                  marcado como cobre, únicamente en una caja COBRE.
                 </p>
               </div>
             </div>
@@ -803,7 +854,8 @@ export const AdminConfig = () => {
 
                 <ul style={estilos.formatoLista}>
                   <li>
-                    Sube un archivo <strong>.csv</strong>.
+                    Sube un archivo <strong>.csv</strong> o{" "}
+                    <strong>.xlsx</strong>.
                   </li>
                   <li>
                     La primera fila debe contener la columna{" "}
@@ -830,15 +882,40 @@ export const AdminConfig = () => {
             </div>
 
             <div style={estilos.importacionAcciones}>
-              <span style={estilos.importacionAyuda}>
-                Solo se añadirán los DMC nuevos. Los que ya existan en la lista
-                permanecerán sin cambios.
-              </span>
+              <label style={estilos.importacionCampoLista}>
+                <span style={estilos.campoEtiqueta}>Lista de destino</span>
+
+                <select
+                  value={motivoImport}
+                  onChange={(event) => setMotivoImport(event.target.value)}
+                  style={estilos.select}
+                >
+                  {LISTAS_BLOQUEO.map((item) => (
+                    <option key={item.motivo} value={item.motivo}>
+                      {item.etiqueta}
+                    </option>
+                  ))}
+                </select>
+
+                <span style={estilos.ayuda}>
+                  Los DMC importados solo podrán entrar en cajas de tipo{" "}
+                  {listaSeleccionada.cajaDestino}.
+                </span>
+              </label>
+
+              <div style={estilos.importacionReclasificar}>
+                <span style={estilos.interruptorAyuda}>
+                  <strong>Los DMC que ya estén en la otra lista se
+                  reclasifican siempre.</strong> Se añadirán los DMC nuevos a
+                  la lista seleccionada y los que estén marcados con el otro
+                  motivo cambiarán de lista de forma definitiva.
+                </span>
+              </div>
 
               <input
                 ref={inputArchivoRef}
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,.xlsx,text/csv"
                 onChange={handleFileUpload}
                 style={{ display: "none" }}
               />
@@ -846,9 +923,9 @@ export const AdminConfig = () => {
               <button
                 type="button"
                 onClick={() => inputArchivoRef.current?.click()}
-                style={estilos.botonPeligro}
+                style={estilos.botonPeligroGrande}
               >
-                Importar CSV de defectuosos
+                Importar {listaSeleccionada.etiqueta}
               </button>
             </div>
           </section>

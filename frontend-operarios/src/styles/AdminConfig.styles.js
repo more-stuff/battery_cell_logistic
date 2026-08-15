@@ -318,18 +318,6 @@ export const estilos = {
     letterSpacing: "0.12em",
   },
 
-  botonPeligro: {
-    flexShrink: 0,
-    padding: "10px 14px",
-    border: "none",
-    borderRadius: 8,
-    background: "#c0392b",
-    color: "#ffffff",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    fontWeight: 750,
-    fontSize: "0.9rem",
-  },
   sincronizacion: {
     padding: 22,
     border: "1px solid #cfe0ee",
@@ -519,17 +507,43 @@ export const estilos = {
 
   importacionAcciones: {
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: "column",
     gap: 18,
     marginTop: 18,
     paddingTop: 16,
     borderTop: "1px solid #f0d8d3",
   },
 
-  importacionAyuda: {
-    color: "#718399",
-    fontSize: "0.8rem",
-    lineHeight: 1.4,
+  importacionCampoLista: {
+    display: "flex",
+    flexDirection: "column",
+    width: "100%",
+    gap: 7,
+  },
+
+  importacionReclasificar: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 12,
+    width: "100%",
+    padding: "12px 14px",
+    border: "1px solid #f0d8d3",
+    borderRadius: 10,
+    background: "#ffffff",
+    boxSizing: "border-box",
+  },
+
+  botonPeligroGrande: {
+    width: "100%",
+    padding: "18px 24px",
+    border: "none",
+    borderRadius: 10,
+    background: "#c0392b",
+    color: "#ffffff",
+    cursor: "pointer",
+    fontWeight: 800,
+    fontSize: "1.05rem",
+    letterSpacing: "0.02em",
+    boxSizing: "border-box",
   },
 };

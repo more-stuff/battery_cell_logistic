@@ -3,9 +3,17 @@ import {
   enviarPaquete,
   obtenerConfiguracion,
   obtenerDmcDefectuosos,
+  obtenerVersionBlacklist,
 } from "../services/api";
 
 import {
+  leerCache,
+  guardarCache,
+  borrarCache,
+} from "../services/blacklistCache";
+
+import {
+  MOTIVOS,
   TIPOS_CAJA,
   validarCeldaPorTipoCaja,
 } from "../services/validarCeldaPorTipoCaja";
@@ -61,16 +69,91 @@ export const usePaquete = (
   const [fechaCaducidadCajaGuardada, setFechaCaducidadCajaGuardada] =
     useState(null);
 
-  const [blacklist, setBlacklist] = useState(new Set());
+  // Dos Sets separados. El motivo de un DMC se resuelve mirando en cuál está.
+  const [bloqueo, setBloqueo] = useState({
+    defectuosos: new Set(),
+    cobre: new Set(),
+  });
 
-  const refrescarListaNegra = useCallback(async () => {
-    try {
-      const lista = await obtenerDmcDefectuosos();
-      setBlacklist(new Set(lista));
-    } catch (error) {
-      console.error("Error cargando lista negra", error);
-    }
+  // FAIL-CLOSED: mientras esto sea false NO se puede escanear.
+  //
+  // Es el punto crítico de todo el mecanismo. Si la lista no está cargada y
+  // dejáramos escanear, la validación no fallaría: daría "libre" a todo y
+  // metería cobre y defectuosas en cajas normales sin un solo aviso. Un fallo
+  // silencioso es peor que un puesto parado.
+  const [bloqueoCargado, setBloqueoCargado] = useState(false);
+  const [errorBloqueo, setErrorBloqueo] = useState(null);
+
+  const aplicarListas = useCallback((datos) => {
+    setBloqueo({
+      defectuosos: new Set(datos.defectuosos),
+      cobre: new Set(datos.cobre),
+    });
+    setBloqueoCargado(true);
+    setErrorBloqueo(null);
   }, []);
+
+  const cargarListaBloqueo = useCallback(async () => {
+    setBloqueoCargado(false);
+    setErrorBloqueo(null);
+
+    try {
+      // 1. Preguntamos SOLO la versión: unos bytes en vez de decenas de MB.
+      const versionServidor = await obtenerVersionBlacklist();
+
+      // 2. ¿Sirve lo que tenemos guardado?
+      const cache = await leerCache();
+
+      if (cache && cache.version === versionServidor) {
+        aplicarListas(cache);
+        return;
+      }
+
+      // 3. No sirve: se descarga entera y se reemplaza.
+      const datos = await obtenerDmcDefectuosos();
+
+      if (
+        !Array.isArray(datos?.defectuosos) ||
+        !Array.isArray(datos?.cobre) ||
+        !Number.isInteger(datos?.version)
+      ) {
+        // Respuesta con forma inesperada. Cortamos: mejor puesto parado que
+        // validando con una lista incompleta.
+        throw new Error("Respuesta inesperada del servidor.");
+      }
+
+      aplicarListas(datos);
+
+      // La versión que se guarda es la que VIENE CON LAS LISTAS, no la del
+      // paso 1. Si alguien importa entre ambas llamadas, guardar la del paso 1
+      // dejaría una copia etiquetada con una versión que no le corresponde y
+      // que nunca se refrescaría.
+      await guardarCache(datos);
+    } catch (error) {
+      console.error("Error cargando la lista de bloqueo", error);
+
+      // La copia local podría estar desfasada respecto al servidor, así que no
+      // se usa como respaldo: se descarta y el puesto queda bloqueado.
+      await borrarCache();
+
+      setBloqueo({ defectuosos: new Set(), cobre: new Set() });
+      setBloqueoCargado(false);
+      setErrorBloqueo(
+        "No se ha podido cargar la lista de bloqueo. No se puede escanear hasta que se recupere la conexión.",
+      );
+    }
+  }, [aplicarListas]);
+
+  // null = DMC libre. Los motivos son excluyentes, así que en cuanto aparece
+  // en una lista no hace falta mirar la otra.
+  const motivoDeBloqueo = useCallback(
+    (dmc) => {
+      if (bloqueo.defectuosos.has(dmc)) return MOTIVOS.DEFECTUOSO;
+      if (bloqueo.cobre.has(dmc)) return MOTIVOS.COBRE;
+      return null;
+    },
+    [bloqueo],
+  );
 
   useEffect(() => {
     let activo = true;
@@ -112,12 +195,12 @@ export const usePaquete = (
     };
 
     cargarDatosBackend();
-    refrescarListaNegra();
+    cargarListaBloqueo();
 
     return () => {
       activo = false;
     };
-  }, [modelo, refrescarListaNegra]);
+  }, [modelo, cargarListaBloqueo]);
 
   // ─── LocalStorage ───────────────────────────────────────────────────────
 
@@ -133,8 +216,11 @@ export const usePaquete = (
   const storageScope = `${usuario}|${modelo}|${tipoCaja}`;
   const [storageHydratedScope, setStorageHydratedScope] = useState(null);
 
+  // COBRE comparte límite con DEFECTUOSA: es la misma caja física. Tiene que
+  // coincidir con get_limite_por_tipo_caja() del backend, o el operario
+  // escanearía 180 piezas para que finalizar_reempaque le rechace la caja.
   const limiteActivo =
-    tipoCaja === TIPOS_CAJA.DEFECTUOSA
+    tipoCaja === TIPOS_CAJA.DEFECTUOSA || tipoCaja === TIPOS_CAJA.COBRE
       ? config.limite_defectuosa
       : tipoCaja === TIPOS_CAJA.CADUCIDAD_PROXIMA
         ? config.limite_caducidad_proxima
@@ -262,6 +348,17 @@ export const usePaquete = (
       };
     }
 
+    // FAIL-CLOSED. Sin la lista cargada no se valida nada: pasaría cualquier
+    // celda, incluidas las bloqueadas, y sin ningún aviso.
+    if (!bloqueoCargado) {
+      return {
+        error:
+          errorBloqueo ??
+          "⏳ Cargando lista de bloqueo. No se puede escanear todavía.",
+        type: "defect_error",
+      };
+    }
+
     if (!huActual) {
       return {
         error: "⚠️ Introduce el HU de la caja primero.",
@@ -301,21 +398,21 @@ export const usePaquete = (
       };
     }
 
-    const validacionTipoCaja = validarCeldaPorTipoCaja({
+    const resultado = validarCeldaPorTipoCaja({
       tipoCaja,
       dmc,
       fechaCaducidad: resultadoFecha.fechaCaducidad,
-      blacklist,
+      motivoBloqueo: motivoDeBloqueo(dmc),
       diasCaducidadProxima: config.caducidad_proxima_dias,
       diasCaducidadProximaDefectuosa: config.caducidad_proxima_defectuosa_dias,
     });
 
-    if (!validacionTipoCaja.ok) {
+    if (!resultado.ok) {
       setCeldaInput("");
 
       return {
-        error: validacionTipoCaja.error,
-        type: validacionTipoCaja.type,
+        error: resultado.error,
+        type: resultado.type,
       };
     }
 
@@ -476,7 +573,9 @@ export const usePaquete = (
       setIdGuardado(respuesta.id_temporal);
       setFechaCaducidadCajaGuardada(respuesta.fecha_caducidad_caja ?? null);
 
-      await refrescarListaNegra();
+      // Con la versión en juego, esto ya no redescarga 48 MB por caja cerrada:
+      // pregunta la versión y, si no ha cambiado, tira de la copia local.
+      await cargarListaBloqueo();
 
       setCeldas([]);
       setFechaInicio(null);
@@ -542,6 +641,12 @@ export const usePaquete = (
     enviarDatos,
 
     configCargada,
+
+    // Estado de la lista de bloqueo, para que la pantalla pueda avisar y
+    // ofrecer reintentar en vez de dejar al operario escaneando en vacío.
+    bloqueoCargado,
+    errorBloqueo,
+    recargarListaBloqueo: cargarListaBloqueo,
 
     limite: limiteActivo,
     limite_normal: config.limite_caja,

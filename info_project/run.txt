@@ -48,3 +48,28 @@ docker compose stop worker-silena
 docker compose up -d worker-silena
 
 docker compose exec worker-silena ls /nas
+
+
+
+
+cobre
+
+docker cp cobre.csv battery_cell_logistic-db-1:/tmp/cobre.csv
+
+docker exec battery_cell_logistic-db-1 head -c 200 /tmp/cobre.csv | xxd | head -5
+docker exec battery_cell_logistic-db-1 wc -l /tmp/ cobre.csv
+
+
+
+docker cp cajas_a_borrar.csv battery_cell_logistic-db-1:/tmp/cajas_a_borrar.csv
+
+docker compose exec -T db psql -U postgres -d trazabilidad < ...001_control.sql
+# leer la salida, resolver los dos identificadores raros
+
+docker compose exec -T db psql -U postgres -d trazabilidad < ...002_volcado.sql
+docker cp battery_cell_logistic-db-1:/tmp/backup_cajas_borradas.csv .
+docker cp battery_cell_logistic-db-1:/tmp/backup_celdas_borradas.csv .
+
+# pausar sync_activo desde el panel
+
+docker compose exec -T db psql -U postgres -d trazabilidad < ...003_ejecutar.sql

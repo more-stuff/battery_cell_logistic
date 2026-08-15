@@ -59,6 +59,7 @@ export const AdminTabla = ({
     if (colId === "tipo_caja") {
       if (valor === "CADUCIDAD_PROXIMA") return "Caducidad próxima";
       if (valor === "DEFECTUOSA") return "Defectuosa";
+      if (valor === "COBRE") return "Cobre";
       if (valor === "NORMAL") return "Normal";
 
       // Fallback por compatibilidad si alguna fila vieja no trae tipo_caja
@@ -125,11 +126,13 @@ export const AdminTabla = ({
 
               const esDefectuosa = tipoCaja === "DEFECTUOSA";
               const esCaducidadProxima = tipoCaja === "CADUCIDAD_PROXIMA";
+              const esCobre = tipoCaja === "COBRE";
 
               let bgColor = index % 2 === 0 ? "#ffffff" : "#f9fafb";
 
               if (esDefectuosa) bgColor = "#fee2e2";
               if (esCaducidadProxima) bgColor = "#fff7ed";
+              if (esCobre) bgColor = "#ede6da";
 
               return (
                 <tr
@@ -141,7 +144,9 @@ export const AdminTabla = ({
                       ? "5px solid #ef4444"
                       : esCaducidadProxima
                         ? "5px solid #f59e0b"
-                        : "none",
+                        : esCobre
+                          ? "5px solid #8a590a"
+                          : "none",
                   }}
                 >
                   {columnasActivas.map((col) => (

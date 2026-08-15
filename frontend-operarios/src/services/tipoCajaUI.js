@@ -42,6 +42,19 @@ export const TIPO_CAJA_UI = {
     icono: "⏳",
     documentTitle: "Etiqueta_CADUCIDAD_PROXIMA",
   },
+  [TIPOS_CAJA.COBRE]: {
+    label: "COBRE",
+    tituloLogin: "ACCESO OPERARIO COBRE",
+    subtituloLogin: "Zona de celdas con partículas de cobre.",
+    tituloPanel: "🟠 Escaneo de celdas con cobre",
+    modoBanner: "MODO: REGISTRO DE PARTÍCULAS DE COBRE",
+    tituloModal: "🟠 CAJA DE COBRE CERRADA",
+    textoBotonFinalizar: "🟠 FINALIZAR COBRE",
+    colorPrincipal: "#8a590a",
+    fondoLogin: "#f8f5f0",
+    icono: "🟠",
+    documentTitle: "Etiqueta_COBRE",
+  },
 };
 
 export const getTipoCajaUI = (tipoCaja) => {

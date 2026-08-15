@@ -8,6 +8,7 @@ from box_rules import (
     TIPO_NORMAL,
     TIPO_DEFECTUOSA,
     TIPO_CADUCIDAD_PROXIMA,
+    TIPO_COBRE,
     TIPOS_CAJA_VALIDOS,
     validar_celda_para_tipo_caja,
     get_config_int,
@@ -135,16 +136,20 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
 
                 # Devolvemos un 409 Conflict para que el Frontend sepa mostrarlo bonito
                 raise HTTPException(status_code=409, detail=msg_error)
-        dmcs_defectuosos = set()
+
+        motivos_bloqueo = {}
 
         if dmcs_entrantes:
-            defectuosos = (
-                db.query(models.DMCDefectuoso.dmc_code)
+            bloqueados = (
+                db.query(
+                    models.DMCDefectuoso.dmc_code,
+                    models.DMCDefectuoso.motivo,
+                )
                 .filter(models.DMCDefectuoso.dmc_code.in_(dmcs_entrantes))
                 .all()
             )
 
-            dmcs_defectuosos = {row[0] for row in defectuosos}
+            motivos_bloqueo = {row[0]: row[1] for row in bloqueados}
 
         errores_tipo_caja = []
 
@@ -154,7 +159,7 @@ def finalizar_reempaque(datos: schemas.ReempaqueInput, db: Session = Depends(get
                     tipo_caja=tipo_caja,
                     dmc=celda.dmc_code,
                     fecha_caducidad=celda.fecha_caducidad,
-                    dmc_es_defectuoso=celda.dmc_code in dmcs_defectuosos,
+                    motivo_bloqueo=motivos_bloqueo.get(celda.dmc_code),
                     caducidad_proxima_dias=caducidad_proxima_dias,
                     caducidad_proxima_defectuosa_dias=caducidad_proxima_defectuosa_dias,
                 )

@@ -7,6 +7,7 @@ import { AdminDashboard } from "./components/AdminDashboard.jsx";
 import Operario from "./components/Operario.jsx";
 import OperarioDefectuoso from "./components/OperarioDefectuoso.jsx";
 import OperarioCaducidadProxima from "./components/OperarioCaducidadProxima.jsx";
+import OperarioCobre from "./components/OperarioCobre.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -18,6 +19,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           path="/caducidad-proxima"
           element={<OperarioCaducidadProxima />}
         />
+        <Route path="/cobre" element={<OperarioCobre />} />
         <Route path="/carretilla" element={<Carretillero />} />
         <Route path="/administrative" element={<AdminDashboard />} />
       </Routes>

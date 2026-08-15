@@ -224,11 +224,13 @@ def sustituir_celda(
                         f"en la caja '{conflicto.id_temporal or 'Desconocida'}'. No se puede usar."
                     ),
                 )
-        dmc_defectuoso = (
-            db.query(models.DMCDefectuoso.dmc_code)
+        bloqueo = (
+            db.query(models.DMCDefectuoso.motivo)
             .filter(models.DMCDefectuoso.dmc_code == datos.nueva_celda.dmc_code)
             .first()
         )
+
+        motivo_bloqueo = bloqueo[0] if bloqueo else None
 
         # comprobamos que la nueva celda cumple las reglas del tipo de caja
         try:
@@ -236,16 +238,12 @@ def sustituir_celda(
                 tipo_caja=tipo_caja,
                 dmc=datos.nueva_celda.dmc_code,
                 fecha_caducidad=datos.nueva_celda.fecha_caducidad,
-                dmc_es_defectuoso=dmc_defectuoso is not None,
+                motivo_bloqueo=motivo_bloqueo,
                 caducidad_proxima_dias=caducidad_proxima_dias,
                 caducidad_proxima_defectuosa_dias=caducidad_proxima_defectuosa_dias,
             )
-
         except ValueError as e:
-            raise HTTPException(
-                status_code=409,
-                detail=str(e),
-            )
+            raise HTTPException(status_code=409, detail=str(e))
 
         # --- PASO 5: Asegurar HU de origen de la nueva celda ---
 

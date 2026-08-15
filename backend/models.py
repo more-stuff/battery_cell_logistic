@@ -150,3 +150,10 @@ class DMCDefectuoso(Base):
     # El DMC es único y servirá como nuestra llave primaria para búsquedas rápidas
     dmc_code = Column(String, primary_key=True, index=True)
     fecha_importacion = Column(DateTime, default=func.now())
+
+    motivo = Column(
+        String(20),
+        nullable=False,
+        default="DEFECTUOSO",
+        index=True,
+    )

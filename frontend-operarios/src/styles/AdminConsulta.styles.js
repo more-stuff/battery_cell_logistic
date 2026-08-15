@@ -351,4 +351,18 @@ export const estilos = {
     backgroundColor: "#6366f1",
     color: "white",
   },
+
+  activeCobre: {
+    backgroundColor: "#8a590a",
+    color: "white",
+  },
+
+  badgeCobre: {
+    background: "#8a590a",
+    color: "white",
+    padding: "4px 10px",
+    borderRadius: "999px",
+    fontWeight: "bold",
+    fontSize: "0.8rem",
+  },
 };
