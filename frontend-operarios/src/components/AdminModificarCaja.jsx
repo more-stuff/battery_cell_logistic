@@ -11,6 +11,7 @@ import {
 import { extractFechaCaducidad } from "../services/extractFecha";
 import { estilos } from "../styles/AdminModificarCaja.styles";
 import {
+  MOTIVOS,
   TIPOS_CAJA,
   validarCeldaPorTipoCaja,
 } from "../services/validarCeldaPorTipoCaja";
@@ -66,7 +67,10 @@ export const AdminModificarCaja = () => {
     caducidad_proxima_defectuosa_dias: 30,
   });
 
-  const [blacklist, setBlacklist] = useState(new Set());
+  const [listaBloqueo, setListaBloqueo] = useState({
+    defectuosos: new Set(),
+    cobre: new Set(),
+  });
 
   const [nuevoDmc, setNuevoDmc] = useState("");
   const [nuevoHuOrigen, setNuevoHuOrigen] = useState("");
@@ -80,15 +84,37 @@ export const AdminModificarCaja = () => {
   useEffect(() => {
     const cargarBlacklist = async () => {
       try {
-        const listaDefectuosos = await obtenerDmcDefectuosos();
-        setBlacklist(new Set(listaDefectuosos));
+        const datos = await obtenerDmcDefectuosos();
+
+        if (
+          !Array.isArray(datos?.defectuosos) ||
+          !Array.isArray(datos?.cobre)
+        ) {
+          throw new Error("Respuesta inesperada del servidor.");
+        }
+
+        setListaBloqueo({
+          defectuosos: new Set(datos.defectuosos),
+          cobre: new Set(datos.cobre),
+        });
       } catch (error) {
         console.error("Error cargando lista de defectuosos:", error);
+        Swal.fire({
+          icon: "error",
+          title: "No se pudo cargar la lista de bloqueo",
+          text: "La validación de celdas defectuosas/cobre estará desactivada hasta recargar la página.",
+        });
       }
     };
 
     cargarBlacklist();
   }, []);
+
+  const motivoDeBloqueo = (dmc) => {
+    if (listaBloqueo.defectuosos.has(dmc)) return MOTIVOS.DEFECTUOSO;
+    if (listaBloqueo.cobre.has(dmc)) return MOTIVOS.COBRE;
+    return null;
+  };
 
   const getTipoCajaActual = () => {
     if (caja?.tipo_caja) return caja.tipo_caja;
@@ -303,7 +329,7 @@ export const AdminModificarCaja = () => {
       tipoCaja: tipoCajaActual,
       dmc: nuevoDmc.trim(),
       fechaCaducidad: nuevaFecha,
-      blacklist,
+      motivoBloqueo: motivoDeBloqueo(nuevoDmc.trim()),
       diasCaducidadProxima: config.caducidad_proxima_dias,
       diasCaducidadProximaDefectuosa: config.caducidad_proxima_defectuosa_dias,
     });
