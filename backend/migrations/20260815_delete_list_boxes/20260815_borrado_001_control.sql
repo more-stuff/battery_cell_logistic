@@ -21,7 +21,9 @@ DELETE FROM tmp_borrar WHERE id_temporal = '' OR id_temporal IS NULL;
 \echo '=== CONTROL 1: identificadores en el fichero (esperado 112) ==='
 SELECT COUNT(*) AS en_fichero FROM tmp_borrar;
 
-\echo '=== CONTROL 2: NO EXISTEN en la base de datos (revisar si no es 0) ==='
+-- Las que salgan aqui la 003 se las salta: no abortan el borrado. Revisar la
+-- lista igualmente, porque lo normal es que sea un error del listado.
+\echo '=== CONTROL 2: NO EXISTEN en la base de datos (la 003 las saltara) ==='
 SELECT t.id_temporal
 FROM tmp_borrar t
 LEFT JOIN cajas_reempaque c ON c.id_temporal = t.id_temporal

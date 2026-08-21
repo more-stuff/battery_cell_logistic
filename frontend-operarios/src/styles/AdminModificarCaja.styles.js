@@ -127,6 +127,19 @@ export const estilos = {
     fontWeight: "bold",
     fontSize: "0.88rem",
   },
+  // Liberar el DMC de una celda atrapada. Rojo y de contorno: borra de verdad
+  // y no tiene vuelta atras, asi que no debe parecerse a "Sustituir".
+  btnLiberar: {
+    padding: "5px 12px",
+    background: "white",
+    color: "#c0392b",
+    border: "1.5px solid #c0392b",
+    borderRadius: 4,
+    cursor: "pointer",
+    fontWeight: "bold",
+    fontSize: "0.82rem",
+    whiteSpace: "nowrap",
+  },
   btnElegir: {
     padding: "5px 14px",
     background: "#2980b9",

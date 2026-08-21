@@ -101,6 +101,11 @@ class EstadoEdicionCaja(BaseModel):
     editable: bool
     motivo: Optional[str] = None
 
+    # Código del bloqueo (SYNC_ACTIVO / EXPORTADO). Va aparte de `motivo`
+    # porque ese texto es para leerlo, no para decidir con él: el frontend
+    # necesita saber POR QUÉ está bloqueada sin parsear castellano.
+    motivo_codigo: Optional[str] = None
+
 
 # Petición de sustitución de una celda
 class SustitucionInput(BaseModel):
@@ -117,6 +122,29 @@ class SustitucionResponse(BaseModel):
     dmc_antiguo: str
     dmc_nuevo: str
     nueva_fecha_caducidad_caja: Optional[date]  # La caducidad puede cambiar
+
+
+# --- PARTE 5 BIS: LIBERACIÓN DE UNA CELDA ATRAPADA ---
+#
+# El DMC es único global, así que una celda registrada en una caja equivocada
+# impide reescanear esa misma pieza en su caja buena. Esto no sustituye nada:
+# borra la fila para soltar el DMC.
+#
+# El DMC viaja en el cuerpo, no en la URL: los códigos escaneados traen
+# espacios, '#', '*', '=' y barras, y una barra en el path rompería la ruta.
+class LiberacionCeldaInput(BaseModel):
+    id_temporal: str  # La caja fantasma donde está atrapada la celda
+    dmc_code: str  # DMC que hay que soltar
+    usuario_id: Optional[str] = None  # Quién lo suelta (trazabilidad)
+
+
+# Respuesta tras liberar una celda
+class LiberacionCeldaResponse(BaseModel):
+    mensaje: str
+    id_temporal: str
+    dmc_code: str
+    celdas_restantes: int
+    nueva_fecha_caducidad_caja: Optional[date]
 
 
 class ConfigInput(BaseModel):

@@ -17,6 +17,11 @@
 --
 -- El borrado debe ser COMPLETO: celdas.dmc_code es UNIQUE global, asi que si
 -- alguna celda sobrevive, el reescaneo fallara con un 409 de duplicados.
+--
+-- Los identificadores del fichero que NO existan en la base de datos se SALTAN
+-- a proposito: no abortan el borrado. Pueden venir de una pasada anterior ya
+-- ejecutada o de un fallo del listado del cliente. Se listan antes de borrar
+-- para que quede constancia de cuales fueron.
 -- ============================================================================
 
 \set ON_ERROR_STOP on
@@ -63,10 +68,23 @@ FROM cajas_reempaque c
 JOIN tmp_borrar t ON t.id_temporal = c.id_temporal
 FOR UPDATE;
 
-\echo '=== ANTES: cajas y celdas afectadas ==='
+-- Las que no esten en la base de datos se saltan. No es un error, pero tiene
+-- que verse: si aqui sale algo que esperabas borrar, el listado esta mal.
+\echo '=== SALTADAS: en el fichero pero NO en la base de datos ==='
+SELECT t.id_temporal
+FROM tmp_borrar t
+LEFT JOIN cajas_reempaque c ON c.id_temporal = t.id_temporal
+WHERE c.id_temporal IS NULL
+ORDER BY t.id_temporal;
+
+\echo '=== ANTES: fichero, cajas encontradas, saltadas y celdas afectadas ==='
 SELECT
+    (SELECT COUNT(*) FROM tmp_borrar) AS en_fichero,
     (SELECT COUNT(*) FROM cajas_reempaque c
        JOIN tmp_borrar t ON t.id_temporal = c.id_temporal) AS cajas,
+    (SELECT COUNT(*) FROM tmp_borrar t
+       LEFT JOIN cajas_reempaque c ON c.id_temporal = t.id_temporal
+      WHERE c.id_temporal IS NULL) AS saltadas,
     (SELECT COUNT(*) FROM celdas ce
        JOIN cajas_reempaque c ON c.id = ce.caja_reempaque_id
        JOIN tmp_borrar t      ON t.id_temporal = c.id_temporal) AS celdas;

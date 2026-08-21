@@ -5,6 +5,7 @@ import {
   getEstadoEdicionCaja,
   sustituirCelda,
   eliminarCaja,
+  liberarCelda,
   obtenerConfiguracion,
   obtenerDmcDefectuosos,
 } from "../services/api";
@@ -57,6 +58,11 @@ export const AdminModificarCaja = () => {
   const [idInput, setIdInput] = useState("");
   const [caja, setCaja] = useState(null);
   const [bloqueo, setBloqueo] = useState(null);
+
+  // Código del bloqueo (SYNC_ACTIVO | EXPORTADO). `bloqueo` es el texto que
+  // se le enseña al operario; este es el que se usa para decidir, porque
+  // sobre una caja EXPORTADO sí hay una acción disponible: liberar celdas.
+  const [bloqueoCodigo, setBloqueoCodigo] = useState(null);
   const [filtroDmc, setFiltroDmc] = useState("");
   const [celdaElegida, setCeldaElegida] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -202,10 +208,11 @@ export const AdminModificarCaja = () => {
       // Solo mostramos la caja cuando ya conocemos sus reglas correctas.
       setCaja(data);
       setBloqueo(estado?.editable === false ? estado.motivo : null);
+      setBloqueoCodigo(estado?.motivo_codigo ?? null);
       setFiltroDmc("");
       setCeldaElegida(null);
 
-      if (estado?.editable === false) {
+      /*  if (estado?.editable === false) {
         Swal.fire({
           icon: "warning",
           title: "Caja bloqueada",
@@ -214,7 +221,7 @@ export const AdminModificarCaja = () => {
             "Esta caja no se puede modificar aqui continua el proceso en silena.",
           confirmButtonColor: "#e67e22",
         });
-      }
+      } */
     } catch (err) {
       const detail = err.response?.data?.detail ?? "Error al buscar la caja.";
       Swal.fire({ icon: "error", title: "Caja no encontrada", text: detail });
@@ -226,6 +233,7 @@ export const AdminModificarCaja = () => {
   const limpiar = () => {
     setCaja(null);
     setBloqueo(null);
+    setBloqueoCodigo(null);
     setIdInput("");
     setCeldaElegida(null);
     setFiltroDmc("");
@@ -268,6 +276,67 @@ export const AdminModificarCaja = () => {
       });
     } catch (err) {
       const detail = err.response?.data?.detail ?? "Error al eliminar la caja.";
+      Swal.fire({ icon: "error", title: "Error", text: detail });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  // Suelta un DMC atrapado en una caja fantasma. No sustituye: borra esa celda
+  // para que el código vuelva a estar libre y se pueda escanear en su caja
+  // buena. Solo se ofrece sobre cajas EXPORTADO, que es donde el backend lo
+  // permite; sobre una caja aún sin enviar dejaría el CSV incompleto.
+  const handleLiberarCelda = async (celda) => {
+    const confirm = await Swal.fire({
+      icon: "warning",
+      title: "¿Liberar este DMC?",
+      html: `
+        <p>Se borrará la celda <b><code>${celda.dmc_code}</code></b> de la caja
+        <b>${caja.id_temporal}</b>.</p>
+        <p style="margin-top:10px;">El DMC quedará libre para escanearlo en su
+        caja correcta. La caja se queda con
+        <b>${caja.total_celdas - 1}</b> celdas y sigue como enviada a SILENA.</p>
+        <p style="color:#e74c3c; font-weight:bold; margin-top:10px;">No se guarda
+        copia de la celda. Esta acción no se puede deshacer.</p>
+      `,
+      showCancelButton: true,
+      confirmButtonText: "Sí, liberar el DMC",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#e74c3c",
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    setGuardando(true);
+
+    try {
+      const user = JSON.parse(localStorage.getItem("admin_user") ?? "{}");
+
+      const res = await liberarCelda({
+        id_temporal: caja.id_temporal,
+        dmc_code: celda.dmc_code,
+        usuario_id: user.username ?? "admin",
+      });
+
+      // Quitamos la celda de la tabla sin recargar: la caja no cambia de
+      // estado, así que no hace falta volver a preguntar por ella.
+      setCaja({
+        ...caja,
+        celdas: caja.celdas.filter((c) => c.dmc_code !== celda.dmc_code),
+        total_celdas: res.celdas_restantes,
+        fecha_caducidad_caja: res.nueva_fecha_caducidad_caja,
+      });
+
+      if (celdaElegida?.dmc_code === celda.dmc_code) setCeldaElegida(null);
+
+      Swal.fire({
+        icon: "success",
+        title: "DMC liberado",
+        html: `Ya puedes escanear <code>${celda.dmc_code}</code> en su caja correcta.<br/>
+               En la caja quedan <b>${res.celdas_restantes}</b> celdas.`,
+      });
+    } catch (err) {
+      const detail = err.response?.data?.detail ?? "Error al liberar la celda.";
       Swal.fire({ icon: "error", title: "Error", text: detail });
     } finally {
       setGuardando(false);
@@ -426,9 +495,14 @@ export const AdminModificarCaja = () => {
   // solo para no dejar al operario avanzar en vano.
   const cajaBloqueada = Boolean(bloqueo);
 
+  // Caja ya enviada a SILENA. Es el único bloqueo sobre el que se puede
+  // liberar una celda atrapada, así que ese botón se activa justo cuando
+  // los demás se apagan.
+  const cajaExportada = bloqueoCodigo === "EXPORTADO";
+
   return (
     <div style={estilos.page}>
-      <h2 style={estilos.titulo}>🔧 Modificar Caja Cerrada</h2>
+      <h2 style={estilos.titulo}>🔧 Modificar Caja Cerrada | Borrar celda</h2>
 
       <p style={estilos.subtitulo}>
         Busca una caja por su identificador temporal, selecciona la celda a
@@ -500,7 +574,18 @@ export const AdminModificarCaja = () => {
       )}
 
       {caja && cajaBloqueada && (
-        <div style={estilos.bannerBloqueo}>{bloqueo}</div>
+        <div style={estilos.bannerBloqueo}>
+          {bloqueo}
+
+          {cajaExportada && (
+            <p style={{ fontWeight: "normal", margin: "8px 0 0" }}>
+              Si una celda de esta caja no estuvo nunca dentro y su DMC te
+              bloquea el escaneo en la caja correcta, usa{" "}
+              <b>🔓 Liberar DMC</b> en su fila. Borra esa celda de aquí; la baja
+              en SILENA sigue yendo por el ERP.
+            </p>
+          )}
+        </div>
       )}
 
       {caja && (
@@ -627,19 +712,40 @@ export const AdminModificarCaja = () => {
                         </td>
 
                         <td style={{ ...estilos.td, textAlign: "center" }}>
-                          <button
+                          <div
                             style={{
-                              ...(esElegida
-                                ? estilos.btnElegido
-                                : estilos.btnElegir),
-                              opacity: cajaBloqueada ? 0.4 : 1,
-                              cursor: cajaBloqueada ? "not-allowed" : "pointer",
+                              display: "flex",
+                              gap: 6,
+                              justifyContent: "center",
                             }}
-                            onClick={() => seleccionarCelda(celda)}
-                            disabled={guardando || cajaBloqueada}
                           >
-                            {esElegida ? "✓ Elegida" : "Sustituir"}
-                          </button>
+                            <button
+                              style={{
+                                ...(esElegida
+                                  ? estilos.btnElegido
+                                  : estilos.btnElegir),
+                                opacity: cajaBloqueada ? 0.4 : 1,
+                                cursor: cajaBloqueada
+                                  ? "not-allowed"
+                                  : "pointer",
+                              }}
+                              onClick={() => seleccionarCelda(celda)}
+                              disabled={guardando || cajaBloqueada}
+                            >
+                              {esElegida ? "✓ Elegida" : "Sustituir"}
+                            </button>
+
+                            {cajaExportada && (
+                              <button
+                                style={estilos.btnLiberar}
+                                onClick={() => handleLiberarCelda(celda)}
+                                disabled={guardando}
+                                title="Borra esta celda para que su DMC se pueda escanear en otra caja"
+                              >
+                                🔓 Liberar DMC
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

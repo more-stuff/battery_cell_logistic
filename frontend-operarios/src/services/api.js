@@ -294,7 +294,11 @@ export const getCeldasCaja = async (idTemporal) => {
 
 export const getEstadoEdicionCaja = async (idTemporal) => {
   const res = await api.get(`/admin/cajas/${idTemporal}/estado-edicion`);
-  return res.data; // { id_temporal, editable, motivo }
+  // { id_temporal, editable, motivo, motivo_codigo }
+  // motivo   -> texto para el operario.
+  // motivo_codigo -> SYNC_ACTIVO | EXPORTADO. Es el que hay que mirar para
+  //                  decidir: el texto es castellano con emojis y cambia.
+  return res.data;
 };
 
 export const sustituirCelda = async (payload) => {
@@ -305,4 +309,12 @@ export const sustituirCelda = async (payload) => {
 export const eliminarCaja = async (id_temporal) => {
   const response = await api.delete(`/admin/cajas/${id_temporal}`);
   return response.data;
+};
+
+// Suelta un DMC atrapado en una caja fantasma borrando esa celda. Solo
+// funciona sobre cajas ya EXPORTADO; el backend rechaza el resto con un 409.
+// El DMC va en el cuerpo porque los codigos escaneados llevan barras.
+export const liberarCelda = async (payload) => {
+  const res = await api.post("/admin/liberar-celda", payload);
+  return res.data;
 };

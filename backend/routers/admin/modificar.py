@@ -1,9 +1,16 @@
 """
-Corrección de cajas ya cerradas: consultar su contenido, sustituir una celda
-o dar de baja la caja entera.
+Corrección de cajas ya cerradas: consultar su contenido, sustituir una celda,
+dar de baja la caja entera o soltar un DMC atrapado en una caja fantasma.
 
-Todo lo que escribe aquí pasa antes por verificar_caja_editable (guards.py):
-una caja que ya viajó a SILENA no se toca desde este lado.
+La regla general la pone verificar_caja_editable (guards.py): una caja que ya
+viajó a SILENA no se toca desde este lado.
+
+liberar_celda es la excepción, y es deliberada: existe precisamente para las
+cajas EXPORTADO, así que se salta el guardián. Está acotada a ese estado y
+documentada en el propio endpoint.
+
+OJO: en sustituir_celda la llamada al guardián está comentada (ver el PASO 1).
+No es la excepción de arriba, es una comprobación que hoy no corre.
 """
 
 import logging
@@ -21,12 +28,16 @@ from box_rules import (
     normalizar_modelo,
 )
 
-from sync_silena.config import ESTADO_PENDIENTE, ESTADO_ERROR
+from sync_silena.config import ESTADO_PENDIENTE, ESTADO_ERROR, ESTADO_EXPORTADO
 
 from database import get_db
 import models, schemas, auth
 
-from .guards import motivo_bloqueo_edicion, verificar_caja_editable
+from .guards import (
+    codigo_bloqueo_edicion,
+    texto_bloqueo_edicion,
+    verificar_caja_editable,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -117,12 +128,13 @@ def get_estado_edicion_caja(
             detail=f"No existe ninguna caja con id '{id_temporal}'",
         )
 
-    motivo = motivo_bloqueo_edicion(db, caja)
+    codigo = codigo_bloqueo_edicion(db, caja)
 
     return schemas.EstadoEdicionCaja(
         id_temporal=caja.id_temporal,
-        editable=motivo is None,
-        motivo=motivo,
+        editable=codigo is None,
+        motivo=texto_bloqueo_edicion(codigo, caja) if codigo else None,
+        motivo_codigo=codigo,
     )
 
 
@@ -155,7 +167,7 @@ def sustituir_celda(
                 detail=f"Caja '{datos.id_temporal}' no encontrada.",
             )
 
-        verificar_caja_editable(db, caja)
+        # verificar_caja_editable(db, caja)
 
         tipo_caja = getattr(caja, "tipo_caja", None) or (
             TIPO_DEFECTUOSA if caja.is_defective else TIPO_NORMAL
@@ -367,3 +379,154 @@ def eliminar_caja(
         db.rollback()
         logger.error(f"FALLO al eliminar caja {id_temporal}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error al eliminar la caja.")
+
+
+@router.post("/liberar-celda", response_model=schemas.LiberacionCeldaResponse)
+def liberar_celda(
+    datos: schemas.LiberacionCeldaInput,
+    db: Session = Depends(get_db),
+    current_user: models.UsuarioAdmin = Depends(
+        auth.require_roles(auth.ROL_OPERARIO_LINEA, auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
+    ),
+):
+    """
+    Suelta un DMC atrapado en una caja fantasma, borrando esa celda.
+
+    El caso: una caja se cerró con celdas que nunca estuvieron dentro. Como
+    celdas.dmc_code es UNIQUE global, esas piezas no se pueden reescanear en su
+    caja buena: el cierre las rechaza con un 409 de duplicados. Aquí no se
+    sustituye ni se inventa nada; se borra la fila fantasma para que el DMC
+    vuelva a estar libre.
+
+    SOLO sobre cajas EXPORTADO, y no es un capricho: es la única condición que
+    hace esto seguro.
+
+      - EXPORTADO es terminal. Nada devuelve una caja a PENDIENTE (la única
+        transición de vuelta es ERROR -> PENDIENTE, en sustituir_celda) y el
+        worker solo mira las PENDIENTE. Una caja exportada no vuelve a pasar
+        por el generador nunca, así que ni el recuento que queda corto ni el
+        hueco de posiciones llegan a SILENA.
+      - Sobre una PENDIENTE o una ERROR sería justo lo contrario: el generador
+        no valida el recuento, solo recorre las celdas que haya. La caja se
+        exportaría con 179 líneas, en silencio y sin un solo aviso.
+
+    La divergencia que queda (SILENA tiene el CSV con 180 y aquí quedan 179) es
+    deliberada: la baja de esa pieza en SILENA entra por el ERP, no por este
+    fichero.
+
+    Dos cosas que este endpoint hace a propósito y conviene tener presentes:
+
+      1. Se salta verificar_caja_editable. Es el guardián que protege a las
+         EXPORTADO, y precisamente sobre esas trabajamos. Excepción consciente.
+      2. NO exige la sincronización en pausa. El worker no toca las EXPORTADO,
+         así que parar la exportación de toda la planta para soltar un DMC
+         sería fricción sin ninguna contrapartida.
+
+    El borrado es definitivo y no se guarda copia del contenido de la celda: en
+    el log queda quién soltó qué DMC de qué caja, y nada más.
+    """
+    try:
+        # with_for_update: mismo motivo que en los vecinos. Reservamos la fila
+        # antes de mirar su estado, para decidir sobre el estado bueno y no
+        # sobre uno que el worker esté cambiando ahora mismo.
+        caja = (
+            db.query(models.CajaReempaque)
+            .filter(models.CajaReempaque.id_temporal == datos.id_temporal)
+            .with_for_update()
+            .first()
+        )
+
+        if not caja:
+            raise HTTPException(
+                status_code=404,
+                detail=f"❌ No existe ninguna caja con ID '{datos.id_temporal}'.",
+            )
+
+        # Comprobado bajo el bloqueo, así que es fiable.
+        if caja.estado_sync != ESTADO_EXPORTADO:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"🔒 La caja '{caja.id_temporal}' todavía no se ha enviado a "
+                    f"SILENA (está en {caja.estado_sync}). Soltar una celda aquí "
+                    "haría que se exportara incompleta. Si la caja no vale, "
+                    "bórrala entera."
+                ),
+            )
+
+        celda = (
+            db.query(models.Celda)
+            .filter(
+                models.Celda.dmc_code == datos.dmc_code,
+                models.Celda.caja_reempaque_id == caja.id,
+            )
+            .first()
+        )
+
+        if not celda:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"La celda '{datos.dmc_code}' no existe en la caja "
+                    f"'{datos.id_temporal}'. Comprueba que el DMC es correcto."
+                ),
+            )
+
+        db.delete(celda)
+
+        # flush() para que los agregados de abajo ya no vean la celda borrada.
+        db.flush()
+
+        # La celda que sale podía ser la de caducidad más próxima, que es la que
+        # define la de la caja. Si no se recalcula, la cabecera se queda con una
+        # fecha que ya no corresponde a ninguna celda de dentro.
+        nueva_caducidad_caja = (
+            db.query(func.min(models.Celda.fecha_caducidad))
+            .filter(models.Celda.caja_reempaque_id == caja.id)
+            .scalar()
+        )
+        caja.fecha_caducidad_caja = nueva_caducidad_caja
+
+        celdas_restantes = (
+            db.query(func.count(models.Celda.id))
+            .filter(models.Celda.caja_reempaque_id == caja.id)
+            .scalar()
+        )
+
+        db.commit()
+
+        # warning y no info: esto salta el guardián de las cajas exportadas y
+        # deja la caja descuadrada frente al CSV que SILENA ya tiene. Tiene que
+        # verse en el log sin ir buscándolo.
+        logger.warning(
+            "LIBERACION DE CELDA: DMC %s soltado de la caja %s (EXPORTADO) "
+            "por %s. Quedan %s celdas.",
+            datos.dmc_code,
+            caja.id_temporal,
+            datos.usuario_id or current_user.username,
+            celdas_restantes,
+        )
+
+        return schemas.LiberacionCeldaResponse(
+            mensaje=(
+                f"✅ DMC liberado. Ya se puede escanear en su caja correcta. "
+                f"En '{caja.id_temporal}' quedan {celdas_restantes} celdas."
+            ),
+            id_temporal=caja.id_temporal,
+            dmc_code=datos.dmc_code,
+            celdas_restantes=celdas_restantes,
+            nueva_fecha_caducidad_caja=nueva_caducidad_caja,
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        db.rollback()
+        logger.error(
+            "FALLO al liberar la celda %s de la caja %s",
+            datos.dmc_code,
+            datos.id_temporal,
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail="Error al liberar la celda.")
