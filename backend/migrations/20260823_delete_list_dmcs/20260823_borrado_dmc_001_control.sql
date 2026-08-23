@@ -11,11 +11,31 @@
 -- pueda volver a escanear, porque celdas.dmc_code es UNIQUE global y mientras
 -- la fila fantasma exista el cierre de la caja buena responde 409.
 --
--- Preparacion:
---   1. Generar el CSV desde los xlsx del cliente, en la raiz del proyecto:
---        python backend/migrations/20260823_delete_list_dmcs/extraer_dmcs.py
---   2. Copiarlo al contenedor:
---        docker cp dmcs_a_borrar.csv battery_cell_logistic-db-1:/tmp/dmcs_a_borrar.csv
+-- Preparacion, desde la raiz del proyecto:
+--   docker cp dmcs_a_borrar.csv battery_cell_logistic-db-1:/tmp/dmcs_a_borrar.csv
+--
+-- El CSV ya viene hecho en el repositorio. No hay que generarlo ni hace falta
+-- Python en el servidor: aqui solo se necesita psql.
+--
+-- DE DONDE SALE dmcs_a_borrar.csv
+-- El cliente mando cuatro xlsx (BL SILENA, CADUCADAS BLOQUEADAS SILENA,
+-- VALIDAS y caducadas bloqueadas 2.0), con una hoja por caja: la etiqueta del
+-- contenedor y debajo los DMC. Se unieron los cuatro en este CSV de una sola
+-- columna y los xlsx se tiraron, porque el CSV es la unica forma que sabe leer
+-- COPY y no tiene sentido arrastrar los originales.
+--
+-- Al unirlos:
+--   * 7164 filas no vacias en total.
+--   *   41 eran etiquetas de contenedor (27BUN..., TMP-... y un BID...) y se
+--       descartaron. No se filtro por posicion sino por formato (87 caracteres
+--       empezando por '#0Z'), porque las hojas 2598 y 4197 de BL SILENA no
+--       traen etiqueta y las 3557 y 5224 la traen ademas en mitad de la hoja.
+--   * 7123 eran DMC, de los cuales 9 venian repetidos (8 en la hoja 3933 y 1
+--       en la 0449). El CSV los trae una sola vez.
+--   * 7114 DMC unicos, que es el numero que valida el 002.
+--
+-- Si algun dia hay que rehacer el listado, los xlsx los tiene el cliente: se
+-- vuelven a unir con el mismo criterio y se actualiza el 7114 del 002.
 --
 -- El control que de verdad importa aqui es el 5. Como la caja sobrevive al
 -- borrado, una caja que NO este en EXPORTADO se acabaria mandando a SILENA

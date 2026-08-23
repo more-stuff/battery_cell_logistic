@@ -59,10 +59,11 @@ export const AdminModificarCaja = () => {
   const [caja, setCaja] = useState(null);
   const [bloqueo, setBloqueo] = useState(null);
 
-  // Código del bloqueo (SYNC_ACTIVO | EXPORTADO). `bloqueo` es el texto que
-  // se le enseña al operario; este es el que se usa para decidir, porque
-  // sobre una caja EXPORTADO sí hay una acción disponible: liberar celdas.
-  const [bloqueoCodigo, setBloqueoCodigo] = useState(null);
+  // Si sobre esta caja se puede soltar un DMC atrapado. Lo decide el backend
+  // mirando el estado de la caja, y no se deduce del motivo del bloqueo: ese
+  // motivo es uno solo, el primero que salta, y con la sincronización activa
+  // tapa el EXPORTADO que hay debajo.
+  const [puedeLiberar, setPuedeLiberar] = useState(false);
   const [filtroDmc, setFiltroDmc] = useState("");
   const [celdaElegida, setCeldaElegida] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -208,7 +209,7 @@ export const AdminModificarCaja = () => {
       // Solo mostramos la caja cuando ya conocemos sus reglas correctas.
       setCaja(data);
       setBloqueo(estado?.editable === false ? estado.motivo : null);
-      setBloqueoCodigo(estado?.motivo_codigo ?? null);
+      setPuedeLiberar(estado?.puede_liberar_celdas ?? false);
       setFiltroDmc("");
       setCeldaElegida(null);
 
@@ -233,7 +234,7 @@ export const AdminModificarCaja = () => {
   const limpiar = () => {
     setCaja(null);
     setBloqueo(null);
-    setBloqueoCodigo(null);
+    setPuedeLiberar(false);
     setIdInput("");
     setCeldaElegida(null);
     setFiltroDmc("");
@@ -495,10 +496,11 @@ export const AdminModificarCaja = () => {
   // solo para no dejar al operario avanzar en vano.
   const cajaBloqueada = Boolean(bloqueo);
 
-  // Caja ya enviada a SILENA. Es el único bloqueo sobre el que se puede
-  // liberar una celda atrapada, así que ese botón se activa justo cuando
-  // los demás se apagan.
-  const cajaExportada = bloqueoCodigo === "EXPORTADO";
+  // Caja ya enviada a SILENA: el único estado sobre el que se puede liberar
+  // una celda atrapada. Lo responde el backend con la misma condición que
+  // aplica /liberar-celda, así que el botón aparece exactamente cuando ese
+  // endpoint lo va a aceptar, con la sincronización activa o en pausa.
+  const cajaExportada = puedeLiberar;
 
   return (
     <div style={estilos.page}>

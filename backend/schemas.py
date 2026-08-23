@@ -106,6 +106,14 @@ class EstadoEdicionCaja(BaseModel):
     # necesita saber POR QUÉ está bloqueada sin parsear castellano.
     motivo_codigo: Optional[str] = None
 
+    # Si sobre esta caja se puede soltar un DMC atrapado. Va aparte de
+    # `motivo_codigo` a propósito: ese campo responde a "por qué está
+    # bloqueada" y devuelve un único motivo, el primero que salta, así que con
+    # la sincronización activa tapa el hecho de que la caja ya se exportó. La
+    # pantalla necesita la otra pregunta, "está exportada", y esa se responde
+    # aquí con la misma condición que aplica /liberar-celda.
+    puede_liberar_celdas: bool = False
+
 
 # Petición de sustitución de una celda
 class SustitucionInput(BaseModel):

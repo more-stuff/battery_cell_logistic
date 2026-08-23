@@ -42,9 +42,11 @@ UPDATE tmp_borrar SET dmc_code = btrim(dmc_code, E'\r\n');
 DELETE FROM tmp_borrar WHERE dmc_code = '' OR dmc_code IS NULL;
 
 -- Red de seguridad 1: que el fichero sea el validado en 001.
--- Si se regenera el CSV con extraer_dmcs.py y cambia el numero, hay que
--- cambiarlo aqui a mano y volver a pasar el 001. Es justo lo que queremos:
--- que nadie ejecute esto contra un listado distinto del que se reviso.
+-- 7114 son los DMC unicos del CSV que acompana a esta migracion (de donde
+-- sale ese numero esta explicado en la cabecera del 001). Si algun dia se
+-- rehace el listado y cambia, hay que tocar el numero aqui a mano y volver a
+-- pasar el 001. Es justo lo que queremos: que nadie ejecute esto contra un
+-- listado distinto del que se reviso.
 DO $$
 DECLARE n INT;
 BEGIN

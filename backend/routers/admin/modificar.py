@@ -8,9 +8,6 @@ viajó a SILENA no se toca desde este lado.
 liberar_celda es la excepción, y es deliberada: existe precisamente para las
 cajas EXPORTADO, así que se salta el guardián. Está acotada a ese estado y
 documentada en el propio endpoint.
-
-OJO: en sustituir_celda la llamada al guardián está comentada (ver el PASO 1).
-No es la excepción de arriba, es una comprobación que hoy no corre.
 """
 
 import logging
@@ -135,6 +132,13 @@ def get_estado_edicion_caja(
         editable=codigo is None,
         motivo=texto_bloqueo_edicion(codigo, caja) if codigo else None,
         motivo_codigo=codigo,
+        # Se mira el estado de la caja, NO el codigo de bloqueo: con la
+        # sincronizacion activa `codigo` vale siempre SYNC_ACTIVO y tapa el
+        # EXPORTADO de debajo. Es la misma condicion que aplica liberar_celda,
+        # asi que la pantalla ofrece el boton justo cuando el endpoint lo
+        # acepta. Repetir aqui el `if` de alla es a proposito: liberar_celda no
+        # exige la sincronizacion en pausa y esto tampoco puede exigirla.
+        puede_liberar_celdas=caja.estado_sync == ESTADO_EXPORTADO,
     )
 
 
@@ -167,7 +171,7 @@ def sustituir_celda(
                 detail=f"Caja '{datos.id_temporal}' no encontrada.",
             )
 
-        # verificar_caja_editable(db, caja)
+        verificar_caja_editable(db, caja)
 
         tipo_caja = getattr(caja, "tipo_caja", None) or (
             TIPO_DEFECTUOSA if caja.is_defective else TIPO_NORMAL
