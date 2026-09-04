@@ -2,12 +2,17 @@
 Corrección de cajas ya cerradas: consultar su contenido, sustituir una celda,
 dar de baja la caja entera o soltar un DMC atrapado en una caja fantasma.
 
-La regla general la pone verificar_caja_editable (guards.py): una caja que ya
-viajó a SILENA no se toca desde este lado.
+Las reglas las pone guards.py, y son dos distintas:
 
-liberar_celda es la excepción, y es deliberada: existe precisamente para las
-cajas EXPORTADO, así que se salta el guardián. Está acotada a ese estado y
-documentada en el propio endpoint.
+  - Editar (sustituir_celda) -> verificar_caja_editable. Una caja que ya viajó
+    a SILENA no se corrige desde este lado.
+  - Borrar entera (eliminar_caja) -> verificar_caja_borrable, que es más
+    permisivo: acepta además las EXPORTADO. Una caja puede estar bloqueada
+    para editar y aun así poder borrarse.
+
+liberar_celda es la única que no pasa por ningún guardián: se salta el de
+edición a propósito, está acotada a las cajas EXPORTADO y lo explica en su
+propio docstring.
 """
 
 import logging
@@ -31,8 +36,10 @@ from database import get_db
 import models, schemas, auth
 
 from .guards import (
+    caja_borrable,
     codigo_bloqueo_edicion,
     texto_bloqueo_edicion,
+    verificar_caja_borrable,
     verificar_caja_editable,
 )
 
@@ -139,6 +146,11 @@ def get_estado_edicion_caja(
         # acepta. Repetir aqui el `if` de alla es a proposito: liberar_celda no
         # exige la sincronizacion en pausa y esto tampoco puede exigirla.
         puede_liberar_celdas=caja.estado_sync == ESTADO_EXPORTADO,
+        # Borrar es mas permisivo que editar, asi que esto NO se deduce de
+        # `editable`: una caja exportada no se puede editar y si se puede
+        # borrar. La condicion la pone caja_borrable, la misma que aplica el
+        # DELETE, para que el boton aparezca justo cuando ese endpoint acepta.
+        puede_borrar_caja=caja_borrable(db, caja),
     )
 
 
@@ -352,6 +364,36 @@ def eliminar_caja(
         auth.require_roles(auth.ROL_OPERARIO_LINEA, auth.ROL_ADMIN, auth.ROL_SUPERADMIN)
     ),
 ):
+    """
+    Borra una caja entera con todas sus celdas.
+
+    Quién puede borrarse lo decide verificar_caja_borrable (guards.py), NO el
+    guardián de edición: son dos preguntas distintas y la del borrado es más
+    permisiva. Allí está la regla; aquí solo importan sus dos consecuencias:
+
+      - Caja que todavía no salió (PENDIENTE / ERROR): hace falta la
+        sincronización en pausa, como siempre. No deja rastro fuera porque
+        nunca se escribió nada en el NAS.
+
+      - Caja ya EXPORTADO: se borra aunque la sincronización esté activa.
+        EXPORTADO es terminal (nada devuelve una caja a PENDIENTE salvo la
+        transición ERROR -> PENDIENTE de sustituir_celda) y el worker solo mira
+        las PENDIENTE, así que no hay ninguna exportación a medias que
+        proteger.
+
+    Lo que sí queda descuadrado en el segundo caso, y es la razón de que la
+    pantalla lo avise antes de confirmar: el CSV ya viajó y SILENA tiene esa
+    caja. Este borrado NO la da de baja allí; esa baja entra por el ERP, igual
+    que la de una celda liberada. El worker solo escribe en el NAS, nunca
+    borra, así que el fichero exportado se queda donde está.
+
+    Los DMC de dentro vuelven a quedar libres para escanearse, que es
+    precisamente para lo que se pide: celdas.dmc_code es UNIQUE global.
+
+    El borrado es definitivo y no se guarda copia del contenido: en el log
+    queda quién borró qué caja, en qué estado estaba y cuántas celdas se
+    fueron con ella.
+    """
     # with_for_update: mismo motivo que en sustituir_celda. Reservamos la fila
     # antes de decidir, para no borrar una caja que el worker está exportando
     # en este instante.
@@ -367,17 +409,61 @@ def eliminar_caja(
             detail=f"❌ No existe ninguna caja con ID '{id_temporal}'.",
         )
 
-    # Solo se borran cajas que nunca salieron: una EXPORTADO la corta
-    # verificar_caja_editable, así que no puede quedarse un CSV huérfano en el
-    # NAS (el worker solo escribe, nunca borra).
-    verificar_caja_editable(db, caja)
+    # Comprobado bajo el bloqueo, así que es fiable. Quien decide es
+    # verificar_caja_borrable, NO el guardián de edición: son dos preguntas
+    # distintas y esta caja puede estar bloqueada para editar y aun así
+    # borrarse. `estado_previo` se guarda ahora porque después del delete la
+    # fila ya no está para consultarla.
+    verificar_caja_borrable(db, caja)
+
+    ya_exportada = caja.estado_sync == ESTADO_EXPORTADO
+    estado_previo = caja.estado_sync
+
+    # Se cuenta ANTES de borrar: después ni la caja ni sus celdas existen. Solo
+    # sirve para el log y para el mensaje de vuelta.
+    celdas_borradas = (
+        db.query(func.count(models.Celda.id))
+        .filter(models.Celda.caja_reempaque_id == caja.id)
+        .scalar()
+    )
 
     try:
         db.delete(caja)  # cascade="all, delete-orphan" borra las celdas automáticamente
         db.commit()
-        logger.info(f"Caja {id_temporal} eliminada por {current_user.username}")
+
+        if ya_exportada:
+            # warning y no info: esto salta el guardián de las cajas exportadas
+            # y deja el CSV que SILENA ya tiene sin su caja detrás. Tiene que
+            # verse en el log sin ir buscándolo.
+            logger.warning(
+                "BORRADO DE CAJA EXPORTADA: %s eliminada por %s con %s celdas. "
+                "SILENA conserva su CSV: la baja de alli va por el ERP.",
+                id_temporal,
+                current_user.username,
+                celdas_borradas,
+            )
+        else:
+            logger.info(
+                "Caja %s (%s) eliminada por %s con %s celdas.",
+                id_temporal,
+                estado_previo,
+                current_user.username,
+                celdas_borradas,
+            )
+
+        mensaje = (
+            f"✅ Caja {id_temporal} y sus {celdas_borradas} celdas "
+            "eliminadas correctamente."
+        )
+
+        if ya_exportada:
+            mensaje += " Recuerda darla de baja también en SILENA."
+
         return {
-            "mensaje": f"✅ Caja {id_temporal} y sus celdas eliminadas correctamente."
+            "mensaje": mensaje,
+            "id_temporal": id_temporal,
+            "celdas_borradas": celdas_borradas,
+            "estaba_exportada": ya_exportada,
         }
     except Exception as e:
         db.rollback()

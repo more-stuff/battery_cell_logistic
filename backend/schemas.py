@@ -114,6 +114,12 @@ class EstadoEdicionCaja(BaseModel):
     # aquí con la misma condición que aplica /liberar-celda.
     puede_liberar_celdas: bool = False
 
+    # Si esta caja se puede borrar entera ahora mismo. No coincide con
+    # `editable`: el borrado acepta ademas las cajas ya EXPORTADO, que
+    # eliminar_caja se salta el guardian a proposito. Es decir, se puede
+    # borrar una caja que NO se puede editar.
+    puede_borrar_caja: bool = False
+
 
 # Petición de sustitución de una celda
 class SustitucionInput(BaseModel):

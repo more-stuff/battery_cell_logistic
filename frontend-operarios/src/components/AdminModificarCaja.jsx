@@ -64,6 +64,12 @@ export const AdminModificarCaja = () => {
   // motivo es uno solo, el primero que salta, y con la sincronización activa
   // tapa el EXPORTADO que hay debajo.
   const [puedeLiberar, setPuedeLiberar] = useState(false);
+
+  // Si la caja se puede borrar entera. NO es lo contrario de `bloqueo`: una
+  // caja ya exportada esta bloqueada para editar y aun asi se puede borrar,
+  // que es justo el caso nuevo. Tambien lo decide el backend, con la misma
+  // condicion que aplica el DELETE.
+  const [puedeBorrar, setPuedeBorrar] = useState(false);
   const [filtroDmc, setFiltroDmc] = useState("");
   const [celdaElegida, setCeldaElegida] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -210,6 +216,7 @@ export const AdminModificarCaja = () => {
       setCaja(data);
       setBloqueo(estado?.editable === false ? estado.motivo : null);
       setPuedeLiberar(estado?.puede_liberar_celdas ?? false);
+      setPuedeBorrar(estado?.puede_borrar_caja ?? false);
       setFiltroDmc("");
       setCeldaElegida(null);
 
@@ -235,6 +242,7 @@ export const AdminModificarCaja = () => {
     setCaja(null);
     setBloqueo(null);
     setPuedeLiberar(false);
+    setPuedeBorrar(false);
     setIdInput("");
     setCeldaElegida(null);
     setFiltroDmc("");
@@ -247,14 +255,56 @@ export const AdminModificarCaja = () => {
     setVoltajeError("");
   };
 
+  // Borra la caja entera con sus celdas. Dos escenarios muy distintos detras
+  // del mismo boton:
+  //
+  //   - Caja que aun no salio: no deja rastro fuera, es el borrado de siempre.
+  //   - Caja ya enviada a SILENA: se borra igual (el backend lo permite a
+  //     proposito), pero SILENA conserva su CSV. Ese borrado NO da de baja la
+  //     caja alli, asi que hay que hacerlo tambien en SILENA por el ERP. Por
+  //     eso el aviso no es un parrafo mas: se pide marcar la casilla antes de
+  //     dejar confirmar.
   const handleEliminarCaja = async () => {
+    // `puedeLiberar` es la respuesta del backend a "esta caja esta EXPORTADO",
+    // la misma de la que cuelga el boton de liberar DMC. Aqui decide si el
+    // borrado necesita el aviso de SILENA.
+    const yaEnSilena = puedeLiberar;
+
     const confirm = await Swal.fire({
       icon: "warning",
-      title: "¿Eliminar caja completa?",
-      html: `
+      title: yaEnSilena
+        ? "¿Eliminar una caja ya enviada a SILENA?"
+        : "¿Eliminar caja completa?",
+      html: yaEnSilena
+        ? `
+        <p>Se eliminará la caja <b>${caja.id_temporal}</b> y sus
+        <b>${caja.total_celdas} celdas</b>. Sus DMC quedarán libres para volver
+        a escanearlos.</p>
+        <p style="background:#fdf3e3; border-left:4px solid #e67e22; color:#7e4b12;
+                  padding:10px 14px; margin-top:12px; text-align:left;">
+          <b>⚠️ Esta caja ya se envió a SILENA.</b><br/>
+          Borrarla aquí <b>no</b> la da de baja allí: el fichero exportado sigue
+          en su sitio. Tienes que darla de baja <b>también en SILENA</b>, o los
+          dos sistemas quedarán descuadrados.
+        </p>
+        <p style="color:#e74c3c; font-weight:bold; margin-top:10px;">No se guarda
+        copia del contenido. Esta acción no se puede deshacer.</p>
+      `
+        : `
         <p>Se eliminará la caja <b>${caja.id_temporal}</b> y sus <b>${caja.total_celdas} celdas</b>.</p>
         <p style="color:#e74c3c; font-weight:bold; margin-top:10px;">Esta acción no se puede deshacer.</p>
       `,
+      input: yaEnSilena ? "checkbox" : undefined,
+      inputValue: yaEnSilena ? 0 : undefined,
+      inputPlaceholder: yaEnSilena
+        ? "Me encargo de darla de baja también en SILENA"
+        : undefined,
+      inputValidator: yaEnSilena
+        ? (marcado) =>
+            marcado
+              ? undefined
+              : "Marca la casilla: la baja en SILENA no se hace sola."
+        : undefined,
       showCancelButton: true,
       confirmButtonText: "Sí, eliminar",
       cancelButtonText: "Cancelar",
@@ -266,14 +316,21 @@ export const AdminModificarCaja = () => {
     setGuardando(true);
 
     try {
-      await eliminarCaja(caja.id_temporal);
+      const res = await eliminarCaja(caja.id_temporal);
       limpiar();
 
       Swal.fire({
         icon: "success",
         title: "Caja eliminada",
-        timer: 3000,
-        showConfirmButton: false,
+        // Con la caja ya borrada no hay pantalla donde repetir el aviso, asi
+        // que este mensaje se queda hasta que lo cierren: es el ultimo sitio
+        // donde recordar la baja en SILENA.
+        html: res?.estaba_exportada
+          ? `Se han borrado <b>${res.celdas_borradas}</b> celdas.<br/>
+             <b>Acuérdate de darla de baja también en SILENA.</b>`
+          : undefined,
+        timer: res?.estaba_exportada ? undefined : 3000,
+        showConfirmButton: Boolean(res?.estaba_exportada),
       });
     } catch (err) {
       const detail = err.response?.data?.detail ?? "Error al eliminar la caja.";
@@ -494,6 +551,10 @@ export const AdminModificarCaja = () => {
   // Caja consultable pero de solo lectura: la sincronización está activa o ya
   // se exportó a SILENA. El backend lo vuelve a comprobar al escribir; esto es
   // solo para no dejar al operario avanzar en vano.
+  //
+  // Bloquea la sustitución, pero NO el borrado: una caja exportada no se edita
+  // y aun así se puede borrar entera. Esa otra pregunta la responde
+  // `puedeBorrar`, que viene del backend por separado.
   const cajaBloqueada = Boolean(bloqueo);
 
   // Caja ya enviada a SILENA: el único estado sobre el que se puede liberar
@@ -564,11 +625,18 @@ export const AdminModificarCaja = () => {
             style={{
               ...estilos.btnPeligro,
               marginLeft: "auto",
-              opacity: guardando || cajaBloqueada ? 0.5 : 1,
-              cursor: cajaBloqueada ? "not-allowed" : "pointer",
+              opacity: guardando || !puedeBorrar ? 0.5 : 1,
+              cursor: puedeBorrar ? "pointer" : "not-allowed",
             }}
             onClick={handleEliminarCaja}
-            disabled={guardando || cajaBloqueada}
+            disabled={guardando || !puedeBorrar}
+            title={
+              puedeBorrar
+                ? cajaExportada
+                  ? "Borra la caja aquí. Recuerda darla de baja también en SILENA"
+                  : "Borra la caja y todas sus celdas"
+                : "Pausa la sincronización en Configuración para poder borrarla"
+            }
           >
             🗑️ Eliminar caja
           </button>
@@ -581,10 +649,11 @@ export const AdminModificarCaja = () => {
 
           {cajaExportada && (
             <p style={{ fontWeight: "normal", margin: "8px 0 0" }}>
-              Si una celda de esta caja no estuvo nunca dentro y su DMC te
-              bloquea el escaneo en la caja correcta, usa{" "}
-              <b>🔓 Liberar DMC</b> en su fila. Borra esa celda de aquí; la baja
-              en SILENA sigue yendo por el ERP.
+              Aunque no se pueda editar, sí se puede vaciar: usa{" "}
+              <b>🔓 Liberar DMC</b> en una fila para soltar una celda que nunca
+              estuvo dentro, o <b>🗑️ Eliminar caja</b> para quitarla entera.
+              Las dos cosas liberan los DMC para reescanearlos, y en las dos la
+              baja en SILENA sigue yendo por el ERP: aquí no se da.
             </p>
           )}
         </div>

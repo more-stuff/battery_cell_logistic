@@ -294,10 +294,13 @@ export const getCeldasCaja = async (idTemporal) => {
 
 export const getEstadoEdicionCaja = async (idTemporal) => {
   const res = await api.get(`/admin/cajas/${idTemporal}/estado-edicion`);
-  // { id_temporal, editable, motivo, motivo_codigo }
+  // { id_temporal, editable, motivo, motivo_codigo,
+  //   puede_liberar_celdas, puede_borrar_caja }
   // motivo   -> texto para el operario.
   // motivo_codigo -> SYNC_ACTIVO | EXPORTADO. Es el que hay que mirar para
   //                  decidir: el texto es castellano con emojis y cambia.
+  // puede_borrar_caja -> NO es lo mismo que `editable`: una caja ya exportada
+  //                      no se puede editar pero sí se puede borrar entera.
   return res.data;
 };
 
@@ -306,6 +309,12 @@ export const sustituirCelda = async (payload) => {
   return res.data;
 };
 
+// Borra la caja entera con todas sus celdas. Acepta las que aun no salieron
+// (con la sincronizacion en pausa) y tambien las ya EXPORTADO: sobre esas el
+// backend se salta el guardian a proposito. Ojo, en ese caso el borrado NO da
+// de baja la caja en SILENA; eso va por el ERP, y la pantalla lo avisa antes
+// de confirmar.
+// Devuelve { mensaje, id_temporal, celdas_borradas, estaba_exportada }.
 export const eliminarCaja = async (id_temporal) => {
   const response = await api.delete(`/admin/cajas/${id_temporal}`);
   return response.data;
